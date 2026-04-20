@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MIES-AR • Detección Única y Fija</title>
+    <title>MIES-AR • Visibilidad Garantizada</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -52,7 +52,7 @@
         <header class="max-w-6xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4 border-b border-white/10 pb-6">
             <div>
                 <h1 class="text-3xl font-bold tracking-tighter">MIES-AR</h1>
-                <p class="text-gray-500">Modo Bloqueo: Detecta, Coloca y Detiene el Escaneo.</p>
+                <p class="text-gray-500">Visibilidad Garantizada + Respaldo Visual.</p>
             </div>
             <button onclick="startAR()" class="bg-white text-black font-bold px-8 py-3 rounded-full flex items-center gap-2 hover:bg-gray-200 transition shadow-lg active:scale-95">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -70,7 +70,7 @@
                     </div>
                     <div>
                         <h3 class="text-lg font-bold text-white">Arrastra tu modelo 3D aquí</h3>
-                        <p class="text-sm text-gray-400">o haz clic para explorar (.glb / .gltf)</p>
+                        <p class="text-sm text-gray-400">Si falla, aparecerá un cubo verde de respaldo.</p>
                     </div>
                 </div>
             </div>
@@ -97,18 +97,18 @@
         
         <!-- Toast -->
         <div id="model-found-toast" class="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white text-black px-6 py-3 rounded-xl shadow-2xl z-50 text-center transition-all duration-300 opacity-0 translate-y-4 pointer-events-none">
-            <div class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Modelo Fijo</div>
+            <div class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Modelo Cargado</div>
             <div id="detected-model-name" class="text-lg font-bold">---</div>
         </div>
     </div>
 
     <!-- JAVASCRIPT -->
     <script>
-        // --- 1. DATOS ---
+        // --- 1. DATOS (URLs actualizadas a GitHub Raw para evitar CORS) ---
         let modelsData = [
-            { id: 'skull-001', name: 'Cráneo 3D', url: 'https://threejs.org/examples/models/gltf/Skull.glb' },
-            { id: 'damaged-helmet', name: 'Casco Dañado', url: 'https://threejs.org/examples/models/gltf/DamagedHelmet.glb' },
-            { id: 'robot-001', name: 'Robot', url: 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb' }
+            { id: 'avocado', name: 'Aguacate (Color)', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb' },
+            { id: 'cesium', name: 'Cesium Man', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/CesiumMan/glTF-Binary/CesiumMan.glb' },
+            { id: 'box', name: 'Cubo (Fallback)', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF-Binary/Box.glb' }
         ];
 
         // --- 2. GALERÍA ---
@@ -137,7 +137,7 @@
                         <div class="flex-grow flex items-center justify-center bg-white/5 rounded-lg border border-white/10 mb-4">
                             <div id="${qrContainerId}" class="qr-container"></div>
                         </div>
-                        <p class="text-center text-xs text-gray-400">Escanea para fijar modelo en AR</p>
+                        <p class="text-center text-xs text-gray-400">Escanea para fijar modelo</p>
                     </div>
                 </div>
             `;
@@ -167,16 +167,16 @@
         });
         renderGallery();
 
-        // --- 4. SISTEMA AR (DETECCIÓN ÚNICA) ---
+        // --- 4. SISTEMA AR (VISIBILIDAD MAXIMA) ---
         let video, scanCanvas, scanCtx, scene, camera, renderer, currentModel = null;
-        let animationId, isARRunning = false, isScanning = true; // isScanning es la clave
+        let animationId, isARRunning = false, isScanning = true;
 
         async function startAR() {
             document.getElementById('gallery-view').style.display = 'none';
             document.getElementById('ar-container').style.display = 'block';
             isARRunning = true;
-            isScanning = true; // Reiniciar escaneo al entrar
-            updateStatus("Buscando QR...");
+            isScanning = true;
+            updateStatus("Iniciando cámara...");
 
             video = document.getElementById('video-feed');
             try {
@@ -188,6 +188,7 @@
                     video.play();
                     scanCanvas = document.createElement('canvas');
                     scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+                    updateStatus("Buscando QR...");
                     requestAnimationFrame(tick);
                 };
             } catch (err) {
@@ -217,20 +218,20 @@
             renderer.setSize(container.clientWidth, container.clientHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             document.getElementById('three-canvas').appendChild(renderer.domElement);
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+            
+            // Luz fuerte para visibilidad
+            const ambientLight = new THREE.AmbientLight(0xffffff, 2.0); 
             scene.add(ambientLight);
             const dirLight = new THREE.DirectionalLight(0xffffff, 1);
             dirLight.position.set(2, 2, 2);
             scene.add(dirLight);
         }
 
-        // --- 5. LÓGICA DE TICK (LOOP PRINCIPAL) ---
         function tick() {
             if (!isARRunning) return;
             animationId = requestAnimationFrame(tick);
 
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                // Solo escanear si estamos en modo búsqueda
                 if (isScanning) {
                     const scanSize = Math.min(video.videoWidth, 800);
                     scanCanvas.width = scanSize;
@@ -238,7 +239,7 @@
                     scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
                     
                     let imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
-                    threshold(imageData); // Aplicar filtro binario
+                    threshold(imageData);
 
                     const code = jsQR(imageData.data, imageData.width, imageData.height, {
                         inversionAttempts: "dontInvert",
@@ -247,9 +248,7 @@
                     const marker = document.getElementById('marker-highlight');
 
                     if (code) {
-                        // --- DETECTADO ---
-                        updateStatus("¡QR Detectado! Fijando modelo...");
-                        
+                        updateStatus("¡QR Detectado! Fijando...");
                         drawMarker(code.location);
                         
                         const rawData = code.data.trim();
@@ -259,10 +258,9 @@
                             loadAndFixModel(modelId, code.location);
                             showModelToast(modelsData.find(m => m.id === modelId).name);
                             
-                            // DETENER BÚSQUEDA AQUÍ
                             isScanning = false; 
-                            marker.style.display = 'none'; // Ocultar marca verde
-                            updateStatus("Modelo Fijo. Móvil libre.");
+                            marker.style.display = 'none';
+                            updateStatus("Modelo Fijo.");
                         }
                     } else {
                         updateStatus("Buscando QR...");
@@ -270,39 +268,6 @@
                     }
                 }
                 renderer.render(scene, camera);
-            }
-        }
-
-        // --- 6. ANCLAJE FIJO (SIN SEGUIMIENTO) ---
-        function loadAndFixModel(modelId, location) {
-            // Calcular posición 3D basada en la cámara EN ESE MOMENTO
-            const center = getQRCenter(location);
-            const x = (center.x / scanCanvas.width) * 2 - 1;
-            const y = -(center.y / scanCanvas.height) * 2 + 1;
-            
-            const vec = new THREE.Vector3(x, y, 0.5);
-            vec.unproject(camera);
-            const dir = vec.sub(camera.position).normalize();
-            const distance = -2.5 - camera.position.z;
-            const pos = camera.position.clone().add(dir.multiplyScalar(distance));
-
-            // Cargar modelo si no está cargado
-            const modelData = modelsData.find(m => m.id === modelId);
-            if (!modelData) return;
-            
-            if (!currentModel) {
-                const loader = new THREE.GLTFLoader();
-                loader.load(modelData.url, (gltf) => {
-                    currentModel = gltf.scene;
-                    currentModel.userData.id = modelId;
-                    currentModel.scale.set(0.5, 0.5, 0.5);
-                    currentModel.position.copy(pos); // FIJAR POSICIÓN
-                    scene.add(currentModel);
-                });
-            } else {
-                // Si ya existe, solo moverlo
-                currentModel.position.copy(pos);
-                currentModel.visible = true;
             }
         }
 
@@ -334,6 +299,71 @@
             marker.style.height = `${(width / scanCanvas.width) * window.innerWidth}px`;
         }
 
+        // --- 6. CARGA DE MODELO CON FALLBACK VISIBLE ---
+        function loadAndFixModel(modelId, location) {
+            const center = getQRCenter(location);
+            const x = (center.x / scanCanvas.width) * 2 - 1;
+            const y = -(center.y / scanCanvas.height) * 2 + 1;
+            
+            const vec = new THREE.Vector3(x, y, 0.5);
+            vec.unproject(camera);
+            const dir = vec.sub(camera.position).normalize();
+            const distance = -2.5 - camera.position.z;
+            const pos = camera.position.clone().add(dir.multiplyScalar(distance));
+
+            const modelData = modelsData.find(m => m.id === modelId);
+            if (!modelData) return;
+            
+            // Si ya existe, solo mover
+            if (currentModel) {
+                currentModel.position.copy(pos);
+                currentModel.visible = true;
+                return;
+            }
+
+            const loader = new THREE.GLTFLoader();
+            
+            // INTENTAR CARGAR GLB
+            loader.load(modelData.url, (gltf) => {
+                currentModel = gltf.scene;
+                
+                // RECORRER MODELO PARA ASEGURAR VISIBILIDAD
+                currentModel.traverse((node) => {
+                    if (node.isMesh) {
+                        node.castShadow = true;
+                        node.receiveShadow = true;
+                        // Si el material es negro o invisible, forzarlo
+                        if (!node.material) node.material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                    }
+                });
+
+                // ESCALA GRANDE PARA GARANTIZAR VISTA
+                currentModel.scale.set(2.0, 2.0, 2.0); 
+                currentModel.position.copy(pos);
+                
+                scene.add(currentModel);
+                console.log("Modelo cargado:", modelData.name);
+
+            }, undefined, (error) => {
+                // --- FALLBACK SI FALLA EL GLB ---
+                console.error("Error cargando GLB, usando Cubo Verde:", error);
+                
+                const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: 0x00ff00, 
+                    wireframe: true, 
+                    side: THREE.DoubleSide 
+                });
+                currentModel = new THREE.Mesh(geometry, material);
+                
+                currentModel.scale.set(1.5, 1.5, 1.5);
+                currentModel.position.copy(pos);
+                scene.add(currentModel);
+                
+                alert("El modelo no pudo cargarse (error de enlace). Se muestra un CUBO VERDE para verificar que el sistema AR funciona.");
+            });
+        }
+
         function updateStatus(msg) { document.getElementById('ar-status').textContent = msg; }
         function showModelToast(name) {
             const toast = document.getElementById('model-found-toast');
@@ -341,7 +371,6 @@
             toast.classList.remove('opacity-0', 'translate-y-4');
             setTimeout(() => toast.classList.add('opacity-0', 'translate-y-4'), 3000);
         }
-
         window.addEventListener('resize', () => {
             if(camera && renderer) {
                 camera.aspect = window.innerWidth / window.innerHeight;
