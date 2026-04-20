@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MIES-AR • Galería QR & Vision AR</title>
+    <title>MIES-AR • QR Scanner Final</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -25,39 +25,41 @@
     </script>
 
     <style>
-        body { background-color: #000; color: #fff; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        body { background-color: #000; color: #fff; font-family: 'Inter', sans-serif; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
         
         /* Capas de AR */
-        #ar-container { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999; }
+        #ar-container { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999; background: #000; }
         #video-feed { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
         #three-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
-        #scan-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; border: 2px solid rgba(255,255,255,0.2); box-shadow: inset 0 0 50px rgba(0,0,0,0.5); }
         
-        /* Indicador de detección */
+        /* Indicador visual del QR detectado */
         #marker-highlight {
-            position: absolute; border: 4px solid #00ff00; box-shadow: 0 0 10px #00ff00; display: none; z-index: 30;
-            transform: translate(-50%, -50%); width: 100px; height: 100px; border-radius: 8px;
+            position: absolute; border: 4px solid #00ff00; box-shadow: 0 0 15px #00ff00; display: none; z-index: 30;
+            transform: translate(-50%, -50%); pointer-events: none;
         }
 
         /* Estilos de Galería */
-        .model-card { transition: transform 0.2s; }
-        .model-card:hover { transform: translateY(-5px); }
-        .qr-placeholder { background: white; padding: 10px; border-radius: 8px; display: inline-block; }
+        .model-card { transition: all 0.3s ease; border: 1px solid #333; }
+        .model-card:hover { transform: translateY(-5px); border-color: #fff; }
+        .qr-container { background: white; padding: 10px; border-radius: 8px; display: inline-block; }
     </style>
 </head>
 <body>
 
     <!-- PANTALLA 1: GALERÍA DE MODELOS -->
-    <main id="gallery-view" class="min-h-screen p-6 pb-24">
-        <header class="max-w-7xl mx-auto mb-8 flex justify-between items-center border-b border-white/10 pb-4">
-            <h1 class="text-3xl font-bold tracking-tighter">MIES-AR <span class="text-gray-500 text-lg font-normal">| Galería QR</span></h1>
-            <button onclick="startAR()" class="bg-white text-black font-bold px-6 py-3 rounded-full flex items-center gap-2 hover:bg-gray-200 transition">
+    <main id="gallery-view" class="min-h-screen p-4 md:p-8 pb-24">
+        <header class="max-w-6xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4 border-b border-white/10 pb-6">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tighter">MIES-AR</h1>
+                <p class="text-gray-500">Escanea los códigos para ver los modelos en Realidad Aumentada.</p>
+            </div>
+            <button onclick="startAR()" class="bg-white text-black font-bold px-8 py-3 rounded-full flex items-center gap-2 hover:bg-gray-200 transition shadow-lg active:scale-95">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                Escanear QR (AR)
+                Escanear Códigos QR
             </button>
         </header>
 
-        <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="gallery-grid">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="gallery-grid">
             <!-- Las tarjetas se generarán con JS aquí -->
         </div>
     </main>
@@ -66,32 +68,37 @@
     <div id="ar-container">
         <video id="video-feed" playsinline muted></video>
         <canvas id="three-canvas"></canvas>
-        <div id="scan-overlay"></div>
         <div id="marker-highlight"></div>
 
         <!-- UI Overlay del AR -->
         <div class="absolute top-0 left-0 w-full p-4 z-40 flex justify-between items-start pointer-events-none">
-            <button onclick="stopAR()" class="pointer-events-auto bg-red-600 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-lg">
+            <button onclick="stopAR()" class="pointer-events-auto bg-red-600/90 backdrop-blur text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95 transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                Cerrar AR
+                Salir
             </button>
-            <div id="ar-status" class="bg-black/60 backdrop-blur px-3 py-1 rounded text-sm font-mono text-green-400 border border-green-500/30">
-                Buscando código QR...
+            
+            <div class="bg-black/70 backdrop-blur px-4 py-2 rounded-lg text-xs font-mono text-green-400 border border-green-500/30 max-w-[150px]">
+                <div id="ar-status">Iniciando...</div>
             </div>
         </div>
         
-        <!-- Modelo detectado toast -->
-        <div id="model-found-toast" class="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-white text-black px-6 py-3 rounded-lg shadow-2xl z-50 text-center transition-all duration-300 opacity-0 translate-y-4">
+        <!-- Indicador de escaneo visual -->
+        <div class="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-black/80 to-transparent z-20 flex items-center justify-center pointer-events-none">
+            <div class="w-64 h-1 bg-white/20 rounded-full overflow-hidden">
+                <div class="h-full bg-white w-1/3 animate-ping"></div>
+            </div>
+        </div>
+
+        <!-- Toast de modelo detectado -->
+        <div id="model-found-toast" class="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white text-black px-6 py-3 rounded-xl shadow-2xl z-50 text-center transition-all duration-300 opacity-0 translate-y-4 pointer-events-none">
             <div class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Modelo Detectado</div>
-            <div id="detected-model-name" class="text-lg font-bold">Nombre del Modelo</div>
+            <div id="detected-model-name" class="text-lg font-bold">---</div>
         </div>
     </div>
 
     <!-- JAVASCRIPT LOGIC -->
     <script>
         // --- 1. CONFIGURACIÓN DE MODELOS ---
-        // Puedes añadir tus propios archivos GLB aquí.
-        // Usamos modelos públicos de prueba de Three.js y CDN.
         const modelsData = [
             { id: 'skull-001', name: 'Cráneo 3D', url: 'https://threejs.org/examples/models/gltf/Skull.glb', color: 0xffffff },
             { id: 'damaged-helmet', name: 'Casco Dañado', url: 'https://threejs.org/examples/models/gltf/DamagedHelmet.glb', color: 0xff0000 },
@@ -102,38 +109,39 @@
         const galleryGrid = document.getElementById('gallery-grid');
 
         modelsData.forEach(model => {
-            // Crear QR único que codifica el ID del modelo
             const qrContainerId = `qr-${model.id}`;
             
             const cardHTML = `
-                <div class="bg-gray-900 border border-white/10 rounded-xl overflow-hidden model-card flex flex-col h-full">
-                    <div class="bg-gray-800 aspect-video flex items-center justify-center relative group">
+                <div class="bg-gray-900 rounded-xl overflow-hidden model-card flex flex-col h-full shadow-xl">
+                    <div class="bg-gray-800 aspect-video flex items-center justify-center relative group overflow-hidden">
+                        <!-- Fondo decorativo -->
+                        <div class="absolute inset-0 opacity-20 bg-gradient-to-tr from-gray-700 to-black"></div>
                         <!-- Icono 3D placeholder -->
-                        <svg class="w-16 h-16 text-gray-600 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                        <svg class="w-20 h-20 text-gray-600 group-hover:text-white transition-colors z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                     </div>
-                    <div class="p-6 flex flex-col flex-grow">
-                        <h3 class="text-xl font-bold mb-2">${model.name}</h3>
-                        <p class="text-sm text-gray-400 mb-4 flex-grow">ID del modelo: <span class="font-mono text-white bg-white/10 px-1 rounded">${model.id}</span></p>
+                    <div class="p-6 flex flex-col flex-grow relative">
+                        <h3 class="text-2xl font-bold mb-1 text-white">${model.name}</h3>
+                        <p class="text-xs text-gray-500 font-mono mb-6 bg-white/5 inline-block px-2 py-1 rounded w-max">ID: ${model.id}</p>
                         
-                        <div class="bg-white p-4 rounded-lg self-center">
-                            <div id="${qrContainerId}"></div>
+                        <div class="flex-grow flex items-center justify-center bg-white/5 rounded-lg border border-white/10 mb-4">
+                            <div id="${qrContainerId}" class="qr-container"></div>
                         </div>
-                        <p class="text-xs text-center text-gray-500 mt-2">Escanear para ver en AR</p>
+                        
+                        <p class="text-center text-xs text-gray-400">Escanea este código con el botón de arriba para verlo en tu entorno.</p>
                     </div>
                 </div>
             `;
             galleryGrid.insertAdjacentHTML('beforeend', cardHTML);
 
-            // Generar el QR con la librería qrcode.js
-            // Codificamos una URL si existiera, o simplemente el ID string
-            // Nota: Para producción real, codifica la URL completa de tu página web: `https://tusitio.com/index.html?model=${model.id}`
+            // GENERACIÓN QR: CORREGIDO A NIVEL 'L' (Low) PARA MAYOR DETECCIÓN
+            // Esto crea puntos más grandes y menos densos, ideales para escanear pantallas.
             new QRCode(document.getElementById(qrContainerId), {
                 text: `model=${model.id}`,
-                width: 128,
-                height: 128,
+                width: 160, // Un poco más grande
+                height: 160,
                 colorDark : "#000000",
                 colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.H
+                correctLevel : QRCode.CorrectLevel.L  // CAMBIO CLAVE: De 'H' a 'L'
             });
         });
 
@@ -146,25 +154,38 @@
             document.getElementById('gallery-view').style.display = 'none';
             document.getElementById('ar-container').style.display = 'block';
             isARRunning = true;
+            updateStatus("Iniciando cámara...");
 
-            // Iniciar Cámara
             video = document.createElement('video');
             video.playsInline = true;
             video.muted = true;
             
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                // SOLICITAR CÁMARA CON MEJOR RESOLUCIÓN
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 1920 }, // Preferencia HD
+                        height: { ideal: 1080 }
+                    }
+                });
+                
                 video.srcObject = stream;
-                video.setAttribute("playsinline", true); // required to tell iOS safari we don't want fullscreen
-                video.play();
-                requestAnimationFrame(tick);
+                video.setAttribute("playsinline", true); 
+                
+                video.onloadedmetadata = function() {
+                    video.play();
+                    updateStatus("Buscando código QR...");
+                    requestAnimationFrame(tick);
+                };
+                
             } catch (err) {
-                alert("Error al acceder a la cámara: " + err);
+                console.error("Error cámara:", err);
+                alert("Error: No se pudo acceder a la cámara. Asegúrate de usar HTTPS.");
                 stopAR();
                 return;
             }
 
-            // Iniciar Three.js
             initThreeJS();
         }
 
@@ -176,6 +197,14 @@
             document.getElementById('ar-container').style.display = 'none';
             document.getElementById('gallery-view').style.display = 'block';
             cancelAnimationFrame(animationId);
+            
+            // Limpiar escena 3D
+            if(scene) {
+                while(scene.children.length > 0){ 
+                    scene.remove(scene.children[0]); 
+                }
+            }
+            currentModel = null;
         }
 
         function initThreeJS() {
@@ -185,7 +214,7 @@
 
             scene = new THREE.Scene();
             
-            // Cámara de Three.js debe coincidir con el campo de visión de la cámara del dispositivo
+            // Cámara de Three.js
             camera = new THREE.PerspectiveCamera(70, w / h, 0.01, 1000);
             camera.position.z = 5;
 
@@ -194,11 +223,11 @@
             renderer.setPixelRatio(window.devicePixelRatio);
             document.getElementById('three-canvas').appendChild(renderer.domElement);
 
-            // Luz
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+            // Iluminación
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
             scene.add(ambientLight);
             const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-            dirLight.position.set(1, 1, 1);
+            dirLight.position.set(2, 2, 2);
             scene.add(dirLight);
         }
 
@@ -208,16 +237,20 @@
             animationId = requestAnimationFrame(tick);
 
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                // Dibujar video en un canvas oculto para analizarlo con jsQR
-                // Optimización: No crear canvas nuevo cada frame, usar uno global si fuera producción estricta
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = video.videoWidth;
-                tempCanvas.height = video.videoHeight;
-                const tempCtx = tempCanvas.getContext('2d');
-                tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+                // Crear canvas temporal para analizar frames (optimización: no crear uno nuevo cada frame)
+                if (!canvas) {
+                    canvas = document.createElement('canvas');
+                    ctx = canvas.getContext('2d', { willReadFrequently: true });
+                }
                 
-                // Analizar el cuadro actual buscando un QR
-                const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                // jsQR: Análisis de imagen
                 const code = jsQR(imageData.data, imageData.width, imageData.height, {
                     inversionAttempts: "dontInvert",
                 });
@@ -226,96 +259,89 @@
                 const markerHighlight = document.getElementById('marker-highlight');
 
                 if (code) {
-                    // --- QR DETECTADO ---
-                    
-                    // 1. Mostrar UI de éxito
-                    statusDiv.textContent = "QR Detectado";
+                    // QR ENCONTRADO
+                    statusDiv.textContent = "¡QR Detectado!";
                     statusDiv.classList.replace('text-green-400', 'text-blue-400');
                     
-                    // 2. Dibujar rectángulo alrededor del QR (Overlay 2D)
+                    // Dibujar recuadro verde
                     drawBoundingBox(code.location);
-
-                    // 3. Procesar el contenido del QR
-                    const rawData = code.data;
-                    console.log("QR Found:", rawData);
                     
-                    // Lógica simple: buscar si el QR contiene "model=ID"
+                    // Procesar contenido
+                    const rawData = code.data.trim();
+                    
+                    // Lógica simple de extracción de ID
                     let modelId = null;
-                    if (rawData.includes('model=')) {
-                        modelId = rawData.split('model=')[1];
+                    if (rawData.startsWith('model=')) {
+                        modelId = rawData.split('=')[1];
                     } else {
-                        // Fallback: si el QR es solo el ID
+                        // Intentar coincidencia directa si no es "model=..."
                         const found = modelsData.find(m => m.id === rawData);
                         if(found) modelId = rawData;
                     }
 
                     if (modelId) {
                         loadOrPlaceModel(modelId);
-                        showModelToast(modelsData.find(m => m.id === modelId)?.name || "Modelo Desconocido");
+                        const modelName = modelsData.find(m => m.id === modelId)?.name;
+                        if (modelName) showModelToast(modelName);
                     }
 
                 } else {
-                    // Sin QR
+                    // SIN QR
                     statusDiv.textContent = "Buscando código QR...";
                     statusDiv.classList.replace('text-blue-400', 'text-green-400');
                     markerHighlight.style.display = 'none';
-                    
-                    // Opcional: Ocultar modelo si se pierde el QR por más de X segundos
-                    // if (currentModel) currentModel.visible = false; 
                 }
 
                 renderer.render(scene, camera);
             }
         }
 
-        // Dibuja el recuadro verde alrededor del QR
+        // Dibuja el recuadro sobre el QR detectado
         function drawBoundingBox(location) {
             const marker = document.getElementById('marker-highlight');
             marker.style.display = 'block';
             
-            // Necesitamos mapear las coordenadas del video a las coordenadas de la pantalla
-            // Simplificación: Asumiendo video llena pantalla (object-fit: cover) o usando los puntos medios
-            // Aquí calculamos el centro aproximado para el cuadro 2D
+            // Calcular centro aproximado y ancho
             const topLeft = location.topLeftCorner;
-            const bottomRight = location.bottomRightCorner;
+            const topRight = location.topRightCorner;
+            const bottomLeft = location.bottomLeftCorner;
             
-            // Coordenadas relativas (0 a 1)
-            const x = topLeft.x / document.getElementById('video-feed').videoWidth;
-            const y = topLeft.y / document.getElementById('video-feed').videoHeight;
-            const w = (bottomRight.x - topLeft.x) / document.getElementById('video-feed').videoWidth;
-            const h = (bottomRight.y - topLeft.y) / document.getElementById('video-feed').videoHeight;
+            const width = Math.sqrt(Math.pow(topRight.x - topLeft.x, 2) + Math.pow(topRight.y - topLeft.y, 2));
+            
+            const x = (topLeft.x + bottomRightCornerX(location)) / 2; // Centro X
+            const y = (topLeft.y + bottomRightCornerY(location)) / 2; // Centro Y
+            
+            // Mapeo a pantalla
+            const screenX = (x / video.videoWidth) * window.innerWidth;
+            const screenY = (y / video.videoHeight) * window.innerHeight;
+            const screenW = (width / video.videoWidth) * window.innerWidth;
 
-            // Mapeo a pantalla (window)
-            marker.style.left = (x * window.innerWidth) + 'px';
-            marker.style.top = (y * window.innerHeight) + 'px';
-            marker.style.width = (w * window.innerWidth) + 'px';
-            marker.style.height = (h * window.innerHeight) + 'px';
+            marker.style.left = `${screenX}px`;
+            marker.style.top = `${screenY}px`;
+            marker.style.width = `${screenW}px`;
+            marker.style.height = `${screenW}px`; // Cuadrado
         }
+
+        // Helpers para calcular centro inferior derecho
+        function bottomRightCornerX(loc) { return (loc.topRightCorner.x + loc.bottomRightCorner.x)/2; }
+        function bottomRightCornerY(loc) { return (loc.topRightCorner.y + loc.bottomRightCorner.y)/2; }
+
 
         // --- 5. GESTIÓN DEL MODELO 3D ---
         function loadOrPlaceModel(modelId) {
-            // Si ya tenemos un modelo cargado y es el mismo, solo actualizamos su posición
+            // Si ya tenemos el modelo cargado y es el mismo, rotarlo
             if (currentModel && currentModel.userData.id === modelId) {
-                // Aquí iría la lógica compleja de tracking (proyectar coordenadas del QR al mundo 3D)
-                // Para esta demo, mantenemos el modelo en el centro o sobre el QR visualmente
-                
-                // Mapeo simple: Poner el modelo en el centro de la pantalla (donde estamos mirando)
-                // En una app real, calculamos la posición Z basada en el tamaño del QR para estimar distancia
-                
-                // Animación flotante suave
                 const time = Date.now() * 0.001;
-                if (currentModel) {
-                    currentModel.rotation.y = time; 
-                    // currentModel.position.set(0, 0, -2); // Fijo en centro
-                }
+                currentModel.rotation.y = time + 1; // Rotación continua
+                currentModel.position.set(0, 0, -2.5); // Posición fija frontal (tracking visual básico)
                 return;
             }
 
-            // Si no hay modelo o es diferente, cargar nuevo
+            // Cargar nuevo modelo
             const modelData = modelsData.find(m => m.id === modelId);
             if (!modelData) return;
 
-            // Limpiar anterior
+            // Remover anterior
             if (currentModel) {
                 scene.remove(currentModel);
             }
@@ -323,15 +349,23 @@
             const loader = new THREE.GLTFLoader();
             loader.load(modelData.url, (gltf) => {
                 currentModel = gltf.scene;
-                currentModel.userData.id = modelId; // Guardar ID para referencias futuras
+                currentModel.userData.id = modelId;
                 
-                // Escalar modelo para que se vea bien
-                currentModel.scale.set(0.5, 0.5, 0.5); 
+                // Ajuste de escala y posición inicial
+                currentModel.scale.set(0.8, 0.8, 0.8); 
+                currentModel.position.set(0, 0, -2.5); 
+                
                 scene.add(currentModel);
+                console.log("Modelo cargado:", modelData.name);
 
             }, undefined, (error) => {
                 console.error('Error cargando modelo:', error);
+                updateStatus("Error cargando modelo");
             });
+        }
+
+        function updateStatus(msg) {
+            document.getElementById('ar-status').textContent = msg;
         }
 
         function showModelToast(name) {
@@ -340,13 +374,13 @@
             nameEl.textContent = name;
             toast.classList.remove('opacity-0', 'translate-y-4');
             
-            // Ocultar después de 3 segundos
+            // Ocultar después de 3 segundos si no hay nuevo QR
             setTimeout(() => {
                 toast.classList.add('opacity-0', 'translate-y-4');
             }, 3000);
         }
 
-        // Ajustar tamaño al rotar pantalla
+        // Ajuste al rotar pantalla
         window.addEventListener('resize', () => {
             if(camera && renderer) {
                 camera.aspect = window.innerWidth / window.innerHeight;
@@ -354,6 +388,10 @@
                 renderer.setSize(window.innerWidth, window.innerHeight);
             }
         });
+
+    </script>
+</body>
+</html>
 
     </script>
 </body>
