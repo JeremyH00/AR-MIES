@@ -2,648 +2,397 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MIES-AR • Tracking Fijo al QR</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIES-AR • SurfaceFit AR - Modelo 3D adaptativo a superficies</title>
+    <meta name="description" content="Visualización profesional de modelos 3D en Realidad Aumentada con detección automática de superficies.">
 
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google <model-viewer> (CDN) -->
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+
+    <!-- Configuración de Tailwind y Estilos Personalizados -->
     <script>
         tailwind.config = {
-            theme: { extend: { colors: { black: '#000', white: '#fff', gray: { 800: '#1f1f1f', 900: '#111' } } } }
+            theme: {
+                extend: {
+                    colors: {
+                        black: '#000000',
+                        white: '#ffffff',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
         }
     </script>
 
     <style>
-        body { background-color: #000; color: #fff; font-family: 'Inter', sans-serif; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
-        
-        #ar-container { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999; background: #000; }
-        #video-feed { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
-        #three-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
-        #three-canvas canvas { width: 100% !important; height: 100% !important; display: block; }
-        
-        #marker-highlight {
-            position: absolute; border: 2px dashed #00ff00; box-shadow: 0 0 12px rgba(0,255,0,0.5); display: none; z-index: 30;
-            transform: translate(-50%, -50%); pointer-events: none; border-radius: 4px;
+        /* Estilos base para el modo oscuro profesional y modelo viewer */
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
         }
 
-        .drop-zone { border: 2px dashed #333; transition: all 0.3s ease; background: rgba(255,255,255,0.02); }
-        .drop-zone.active { border-color: #fff; background: rgba(255,255,255,0.1); transform: scale(1.02); }
-        .model-card { transition: all 0.3s ease; border: 1px solid #333; }
-        .model-card:hover { transform: translateY(-5px); border-color: #fff; }
-        .qr-container { background: white; padding: 10px; border-radius: 8px; display: inline-block; }
-
-        /* Indicador de tracking */
-        #tracking-indicator {
-            position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-            z-index: 50; display: none;
+        /* Personalización de model-viewer para integrarse con el diseño negro/blanco */
+        model-viewer {
+            width: 100%;
+            height: 100%;
+            --poster-color: transparent;
+            --progress-bar-color: #ffffff;
         }
-        .track-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin: 0 3px; transition: background 0.2s; }
-        .track-dot.on { background: #00ff00; box-shadow: 0 0 8px #00ff00; }
-        .track-dot.off { background: #ff3333; box-shadow: 0 0 8px #ff3333; }
+
+        /* Ocultar el botón predeterminado de AR de model-viewer para usar nuestro botón personalizado */
+        model-viewer::part(ar-button) {
+            display: none;
+        }
+
+        /* Efecto de carga sutil */
+        .loading-overlay {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+        }
+
+        /* Estilos para la zona de arrastrar y soltar */
+        .drop-zone {
+            border: 2px dashed #333;
+            transition: all 0.3s ease;
+        }
+        .drop-zone.active {
+            border-color: #fff;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Ajuste de barra de desplazamiento */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #000;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
     </style>
 </head>
-<body>
+<body class="flex flex-col min-h-screen">
 
-    <!-- GALERÍA -->
-    <main id="gallery-view" class="min-h-screen p-4 md:p-8 pb-24">
-        <header class="max-w-6xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4 border-b border-white/10 pb-6">
-            <div>
-                <h1 class="text-3xl font-bold tracking-tighter">MIES-AR</h1>
-                <p class="text-gray-500">Modelo fijo al QR — muévelo y el modelo sigue.</p>
+    <!-- Encabezado -->
+    <header class="w-full border-b border-white/10 bg-black sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <!-- Icono simple de cubo 3D con SVG -->
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                </svg>
+                <h1 class="text-xl font-bold tracking-wider uppercase">MIES-AR</h1>
             </div>
-            <button onclick="startAR()" class="bg-white text-black font-bold px-8 py-3 rounded-full flex items-center gap-2 hover:bg-gray-200 transition shadow-lg active:scale-95">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                Escanear QR
-            </button>
-        </header>
+            <div class="hidden md:block">
+                <span class="text-xs font-mono text-white/50 border border-white/20 px-2 py-1 rounded">SurfaceFit AR v1.0</span>
+            </div>
+        </div>
+    </header>
 
-        <div class="max-w-6xl mx-auto mb-10">
-            <div class="relative drop-zone rounded-xl p-8 text-center cursor-pointer group" id="drop-zone-wrapper">
-                <input type="file" id="file-input" accept=".glb,.gltf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                <div class="flex flex-col items-center justify-center gap-4 pointer-events-none">
-                    <div class="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-white/20 transition">
-                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+    <!-- Contenido Principal -->
+    <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
+            
+            <!-- Columna Izquierda: Visualizador 3D -->
+            <section class="lg:col-span-8 flex flex-col gap-4">
+                <div class="relative w-full aspect-square lg:aspect-[4/3] bg-[#111] border border-white/10 rounded-lg overflow-hidden group shadow-2xl">
+                    
+                    <!-- El Componente Model Viewer -->
+                    <model-viewer 
+                        id="ar-model"
+                        src="https://modelviewer.dev/shared-assets/models/NeilArmstrong.glb" 
+                        alt="Modelo 3D de ejemplo para AR"
+                        ar 
+                        ar-modes="webxr scene-viewer quick-look" 
+                        ar-scale="auto"
+                        ar-placement="auto"
+                        camera-controls 
+                        touch-action="pan-y"
+                        auto-rotate 
+                        auto-rotate-delay="1000"
+                        camera-orbit="45deg 55deg 2.5m"
+                        min-camera-orbit="auto auto 2.5m"
+                        max-camera-orbit="auto auto 4m"
+                        interaction-prompt="none"
+                        loading="eager"
+                        reveal="auto"
+                        aria-label="Visualizador 3D interactivo. Arrastra para rotar, scroll para zoom."
+                    >
+                        <!-- Overlay de carga interno -->
+                        <div id="loading-spinner" slot="poster" class="flex items-center justify-center w-full h-full bg-black">
+                            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
+                        </div>
+                    </model-viewer>
+
+                    <!-- Overlay UI: Botón AR Flotante (Solo visible si es compatible) -->
+                    <div class="absolute bottom-6 right-6 z-10">
+                        <button id="ar-button-trigger" class="flex items-center gap-2 bg-white text-black font-bold py-3 px-6 rounded-full shadow-lg hover:bg-gray-200 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white/50" aria-label="Iniciar modo Realidad Aumentada">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            Iniciar AR – Colocar en superficie
+                        </button>
                     </div>
-                    <div>
-                        <h3 class="text-lg font-bold text-white">Arrastra tu modelo 3D aquí</h3>
-                        <p class="text-sm text-gray-400">Si falla la descarga, aparecerá un cubo verde de respaldo.</p>
+
+                    <!-- Indicador de estado AR -->
+                    <div id="ar-status-toast" class="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black/80 text-white text-sm px-4 py-2 rounded-full border border-white/20 opacity-0 transition-opacity duration-300 pointer-events-none flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                        <span id="ar-status-text">Buscando superficie...</span>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="gallery-grid"></div>
+                <!-- Información de estado actual -->
+                <div class="flex justify-between items-center text-sm text-white/50 px-2">
+                    <span id="model-name">Modelo: NeilArmstrong.glb</span>
+                    <span id="interaction-hint">Arrastra para rotar • Scroll para zoom</span>
+                </div>
+            </section>
+
+            <!-- Columna Derecha: Controles e Información -->
+            <section class="lg:col-span-4 flex flex-col gap-6">
+                
+                <!-- Tarjeta de Carga de Archivos -->
+                <div class="bg-white/5 border border-white/10 p-6 rounded-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        Cargar Modelo Propio
+                    </h2>
+                    
+                    <div id="drop-zone" class="drop-zone rounded-lg p-8 text-center cursor-pointer hover:border-white/50 relative">
+                        <input type="file" id="file-input" accept=".glb,.gltf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" aria-label="Subir archivo GLB o GLTF">
+                        <div class="flex flex-col items-center justify-center gap-3 pointer-events-none">
+                            <svg class="w-10 h-10 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <p class="text-sm font-medium text-white/80">Arrastra tu archivo aquí</p>
+                            <p class="text-xs text-white/40">o haz clic para explorar (GLB/GLTF)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tarjeta de Instrucciones -->
+                <div class="bg-white/5 border border-white/10 p-6 rounded-lg flex-grow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Instrucciones
+                    </h2>
+                    
+                    <ol class="space-y-4 text-sm text-white/70 list-decimal list-inside">
+                        <li>
+                            <span class="text-white font-medium">Visualización:</span> Usa un dedo o el ratón para rotar el modelo en la vista previa.
+                        </li>
+                        <li>
+                            <span class="text-white font-medium">Iniciar AR:</span> Presiona el botón "Iniciar AR". La cámara se activará.
+                        </li>
+                        <li>
+                            <span class="text-white font-medium">Detección:</span> Mueve tu dispositivo lentamente hasta que se detecte una superficie plana (suelo o mesa). Verás un indicador visual.
+                        </li>
+                        <li>
+                            <span class="text-white font-medium">Colocación:</span> El modelo se anclará automáticamente a la superficie detectada.
+                        </li>
+                        <li>
+                            <span class="text-white font-medium">Interacción:</span> Usa dos dedos para mover, escalar o rotar el objeto en el mundo real.
+                        </li>
+                    </ol>
+
+                    <div class="mt-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded text-xs text-blue-200">
+                        <strong>Nota técnica:</strong> Esta herramienta utiliza WebXR. Requiere un dispositivo compatible (Android con ARCore o iOS con ARKit).
+                    </div>
+                </div>
+
+                <!-- Botón de Ayuda -->
+                <button id="help-btn" class="w-full py-3 border border-white/20 rounded hover:bg-white/10 transition-colors text-sm font-medium">
+                    ¿Necesitas ayuda con tu dispositivo?
+                </button>
+
+            </section>
+        </div>
     </main>
 
-    <!-- VISOR AR -->
-    <div id="ar-container">
-        <video id="video-feed" playsinline muted></video>
-        <div id="three-canvas"></div>
-        <div id="marker-highlight"></div>
+    <!-- Footer -->
+    <footer class="w-full border-t border-white/10 py-6 mt-8 bg-black">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <p class="text-white/40 text-xs">
+                &copy; 2023 MIES-AR. Todos los derechos reservados. <br>
+                Desarrollado con Google model-viewer y Tailwind CSS.
+            </p>
+        </div>
+    </footer>
 
-        <div class="absolute top-0 left-0 w-full p-4 z-40 flex justify-between items-start pointer-events-none">
-            <button onclick="stopAR()" class="pointer-events-auto bg-red-600/90 backdrop-blur text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95 transition">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                Salir
+    <!-- Modal de Ayuda -->
+    <div id="help-modal" class="fixed inset-0 z-[100] bg-black/90 hidden items-center justify-center backdrop-blur-sm p-4">
+        <div class="bg-[#111] border border-white/20 rounded-lg max-w-md w-full p-6 relative animate-fade-in-up">
+            <button id="close-help" class="absolute top-4 right-4 text-white/50 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
-            <div class="bg-black/80 backdrop-blur px-4 py-2 rounded-lg text-xs font-mono text-green-400 border border-green-500/30 max-w-[220px]">
-                <div id="ar-status">Iniciando...</div>
+            <h3 class="text-xl font-bold mb-4 text-white">Soporte y Dispositivos</h3>
+            <div class="space-y-3 text-sm text-white/70">
+                <p><strong class="text-white">iOS (iPhone/iPad):</strong> Requiere iOS 12+. Safari abrirá automáticamente la app visor ARKit.</p>
+                <p><strong class="text-white">Android:</strong> Requiere Chrome y un dispositivo compatible con ARCore (servicio de Google Play).</p>
+                <p><strong class="text-white">PC de Escritorio:</strong> La función AR no está disponible en PC, pero puedes usar la vista previa 3D interactiva.</p>
+                <p>Si el modelo no carga, asegúrate de que el archivo .glb no esté corrupto.</p>
             </div>
-        </div>
-        
-        <div id="model-found-toast" class="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white text-black px-6 py-3 rounded-xl shadow-2xl z-50 text-center transition-all duration-300 opacity-0 translate-y-4 pointer-events-none">
-            <div class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Modelo Cargado</div>
-            <div id="detected-model-name" class="text-lg font-bold">---</div>
-        </div>
-
-        <!-- Indicador de tracking en vivo -->
-        <div id="tracking-indicator">
-            <div class="bg-black/80 backdrop-blur border border-white/20 rounded-full px-5 py-2.5 flex items-center gap-3">
-                <span class="track-dot" id="dot-pos"></span>
-                <span class="text-[10px] font-mono text-gray-300 tracking-wide">POS</span>
-                <span class="track-dot" id="dot-scl"></span>
-                <span class="text-[10px] font-mono text-gray-300 tracking-wide">SCL</span>
-                <span class="track-dot" id="dot-rot"></span>
-                <span class="text-[10px] font-mono text-gray-300 tracking-wide">ROT</span>
-            </div>
+            <button id="close-help-btn" class="mt-6 w-full bg-white text-black py-2 rounded font-medium hover:bg-gray-200">Entendido</button>
         </div>
     </div>
 
+    <!-- Scripts de Lógica -->
     <script>
-        // --- 1. DATOS ---
-        let modelsData = [
-            { id: 'avocado', name: 'Aguacate', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb' },
-            { id: 'cesium', name: 'Cesium Man', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/CesiumMan/glTF-Binary/CesiumMan.glb' },
-            { id: 'box', name: 'Cubo', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF-Binary/Box.glb' }
-        ];
+        document.addEventListener('DOMContentLoaded', () => {
+            // Referencias al DOM
+            const modelViewer = document.getElementById('ar-model');
+            const fileInput = document.getElementById('file-input');
+            const dropZone = document.getElementById('drop-zone');
+            const modelNameSpan = document.getElementById('model-name');
+            const arButton = document.getElementById('ar-button-trigger');
+            const arStatusToast = document.getElementById('ar-status-toast');
+            const arStatusText = document.getElementById('ar-status-text');
+            const helpModal = document.getElementById('help-modal');
+            const helpBtn = document.getElementById('help-btn');
+            const closeHelpBtn = document.getElementById('close-help-btn');
+            const closeHelpIcon = document.getElementById('close-help');
 
-        // --- 2. GALERÍA (sin cambios) ---
-        const galleryGrid = document.getElementById('gallery-grid');
-        const dropZone = document.getElementById('drop-zone-wrapper');
-        const fileInput = document.getElementById('file-input');
+            // --- Gestión de Carga de Modelos ---
 
-        function renderGallery() {
-            galleryGrid.innerHTML = '';
-            modelsData.forEach(model => addModelCard(model));
-        }
+            function loadModel(file) {
+                if (!file) return;
 
-        function addModelCard(model) {
-            const qrId = `qr-${model.id}`;
-            const isCustom = model.isLocal || false;
-            galleryGrid.insertAdjacentHTML('beforeend', `
-                <div class="bg-gray-900 rounded-xl overflow-hidden model-card flex flex-col h-full shadow-xl relative group">
-                    <div class="bg-gray-800 aspect-video flex items-center justify-center relative overflow-hidden">
-                        <div class="absolute inset-0 opacity-20 bg-gradient-to-tr from-gray-700 to-black"></div>
-                        ${isCustom ? '<span class="absolute top-2 right-2 bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded z-20">PERSONALIZADO</span>' : ''}
-                        <svg class="w-20 h-20 text-gray-600 group-hover:text-white transition-colors z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                    </div>
-                    <div class="p-6 flex flex-col flex-grow relative">
-                        <h3 class="text-2xl font-bold mb-1 text-white truncate">${model.name}</h3>
-                        <p class="text-xs text-gray-500 font-mono mb-6 bg-white/5 inline-block px-2 py-1 rounded w-max">ID: ${model.id}</p>
-                        <div class="flex-grow flex items-center justify-center bg-white/5 rounded-lg border border-white/10 mb-4">
-                            <div id="${qrId}" class="qr-container"></div>
-                        </div>
-                        <p class="text-center text-xs text-gray-400">Escanea para fijar modelo al QR</p>
-                    </div>
-                </div>
-            `);
-            new QRCode(document.getElementById(qrId), {
-                text: `model=${model.id}`, width: 160, height: 160,
-                colorDark: "#000000", colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.L
+                // Validar tipo de archivo
+                const validExtensions = ['glb', 'gltf'];
+                const fileExtension = file.name.split('.').pop().toLowerCase();
+                
+                if (!validExtensions.includes(fileExtension)) {
+                    showToast('Error: Por favor sube archivos .glb o .gltf', 'error');
+                    return;
+                }
+
+                const objectURL = URL.createObjectURL(file);
+                modelViewer.src = objectURL;
+                modelNameSpan.textContent = `Modelo: ${file.name}`;
+                
+                // Feedback visual
+                showToast('Modelo cargado correctamente. Listo para visualizar.', 'success');
+            }
+
+            // Evento Input File
+            fileInput.addEventListener('change', (e) => {
+                loadModel(e.target.files[0]);
             });
-        }
 
-        function loadModelFile(file) {
-            if (!file) return;
-            if (!['glb', 'gltf'].includes(file.name.split('.').pop().toLowerCase())) return alert('Solo .glb o .gltf');
-            const url = URL.createObjectURL(file);
-            modelsData.unshift({ id: 'custom-' + Date.now(), name: file.name, url: url, isLocal: true });
-            addModelCard(modelsData[0]);
-            galleryGrid.children[0].scrollIntoView({ behavior: 'smooth' });
-        }
-        fileInput.addEventListener('change', e => loadModelFile(e.target.files[0]));
-        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('active'); });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('active'));
-        dropZone.addEventListener('drop', e => {
-            e.preventDefault(); dropZone.classList.remove('active');
-            if (e.dataTransfer.files.length) loadModelFile(e.dataTransfer.files[0]);
-        });
-        renderGallery();
+            // Eventos Drag & Drop
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('active');
+            });
 
-        // --- 3. SISTEMA AR CON TRACKING CONTINUO ---
-        let video, scanCanvas, scanCtx, scene, camera, renderer, currentModel = null;
-        let animationId, isARRunning = false;
-        let baseModelScale = 1.0;
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('active');
+            });
 
-        // Estado del tracking
-        let activeModelId = null;      // ID del modelo actualmente cargado
-        let qrLostFrames = 0;          // Cuántos frames sin ver el QR
-        const GRACE_FRAMES = 30;       // ~0.5s a 60fps de gracia antes de ocultar
-        let isLoading = false;         // Evitar cargar el mismo modelo varias veces
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('active');
+                if (e.dataTransfer.files.length > 0) {
+                    loadModel(e.dataTransfer.files[0]);
+                }
+            });
 
-        // Suavizado de posición (evita que el modelo tiemble)
-        let smoothPos = { x: 0, y: 0, z: 0 };
-        let smoothScale = 1;
-        let smoothRotZ = 0;
-        let smoothTiltX = 0;
-        let smoothTiltY = 0;
-        const SMOOTH = 0.25; // 0 = sin suavizado, 1 = muy suave
+            // --- Lógica AR y UI ---
 
-        async function startAR() {
-            document.getElementById('gallery-view').style.display = 'none';
-            document.getElementById('ar-container').style.display = 'block';
-            isARRunning = true;
-            activeModelId = null;
-            currentModel = null;
-            isLoading = false;
-            qrLostFrames = 0;
-            updateStatus("Iniciando cámara...");
+            // Verificar soporte AR para mostrar/ocultar botón
+            if (!modelViewer.canActivateAR) {
+                arButton.style.display = 'none';
+                // Inyectar mensaje en el DOM donde estaba el botón
+                const parent = arButton.parentElement;
+                const noArMsg = document.createElement('div');
+                noArMsg.className = "text-xs text-red-400 text-center bg-black/80 px-3 py-2 rounded border border-red-900/50";
+                noArMsg.textContent = "Tu navegador no soporta WebXR.";
+                parent.appendChild(noArMsg);
+            }
 
-            video = document.getElementById('video-feed');
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+            // Lanzar AR
+            arButton.addEventListener('click', () => {
+                // Mostrar estado de "Buscando" antes de que el navegador tome el control
+                arStatusToast.style.opacity = '1';
+                arStatusText.textContent = "Iniciando cámara y buscando superficie...";
+                
+                // Llamada nativa a la API de model-viewer
+                modelViewer.activateAR().catch((error) => {
+                    console.error("Error al iniciar AR:", error);
+                    arStatusText.textContent = "Error al iniciar AR. Revisa la consola.";
+                    setTimeout(() => { arStatusToast.style.opacity = '0'; }, 3000);
                 });
-                video.srcObject = stream;
-                video.setAttribute("playsinline", true);
-                video.muted = true;
-                video.onloadedmetadata = () => {
-                    video.play();
-                    scanCanvas = document.createElement('canvas');
-                    scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
-                    updateStatus("Buscando QR...");
-                    requestAnimationFrame(tick);
-                };
-            } catch (err) {
-                console.error(err);
-                alert("Error de cámara. Usa HTTPS y permite acceso.");
-                stopAR();
-            }
-            initThreeJS();
-        }
+            });
 
-        function stopAR() {
-            isARRunning = false;
-            if (video && video.srcObject) {
-                video.srcObject.getTracks().forEach(t => t.stop());
-                video.srcObject = null;
-            }
-            document.getElementById('ar-container').style.display = 'none';
-            document.getElementById('gallery-view').style.display = 'block';
-            document.getElementById('tracking-indicator').style.display = 'none';
-            cancelAnimationFrame(animationId);
-            cleanupScene();
-            activeModelId = null;
-            currentModel = null;
-        }
+            // Escuchar eventos del visor para actualizar UI
+            modelViewer.addEventListener('load', () => {
+                document.getElementById('loading-spinner').style.display = 'none';
+            });
 
-        function cleanupScene() {
-            if (scene) {
-                scene.traverse((child) => {
-                    if (child.geometry) child.geometry.dispose();
-                    if (child.material) {
-                        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
-                        else child.material.dispose();
-                    }
+            // Evento que se dispara cuando la sesión AR ha comenzado (si está disponible en la versión)
+            modelViewer.addEventListener('ar-status', (event) => {
+                const status = event.detail.status;
+                if (status === 'failed') {
+                    arStatusText.textContent = "Error: No se pudo detectar superficie o se perdió el seguimiento.";
+                    setTimeout(() => { arStatusToast.style.opacity = '0'; }, 4000);
+                }
+                // Nota: 'session-started' o similar maneja el éxito, pero la UI nativa de AR es la principal guía aquí.
+            });
+
+            // --- Sistema de Notificaciones (Toast) ---
+            function showToast(message, type = 'info') {
+                const toast = document.createElement('div');
+                toast.className = `fixed bottom-4 left-4 z-50 px-4 py-3 rounded shadow-lg border text-sm transition-all duration-500 transform translate-y-10 opacity-0 ${
+                    type === 'error' ? 'bg-red-900/90 border-red-500 text-red-100' : 'bg-white text-black border-transparent'
+                }`;
+                toast.textContent = message;
+                document.body.appendChild(toast);
+
+                // Animación de entrada
+                requestAnimationFrame(() => {
+                    toast.classList.remove('translate-y-10', 'opacity-0');
                 });
-                while (scene.children.length > 0) scene.remove(scene.children[0]);
+
+                // Auto-eliminación
+                setTimeout(() => {
+                    toast.classList.add('translate-y-10', 'opacity-0');
+                    setTimeout(() => toast.remove(), 500);
+                }, 3000);
             }
-            if (renderer) {
-                const c = document.getElementById('three-canvas');
-                if (c.contains(renderer.domElement)) c.removeChild(renderer.domElement);
-                renderer.dispose();
-                renderer = null;
-            }
-        }
 
-        function initThreeJS() {
-            const w = window.innerWidth;
-            const h = window.innerHeight;
-            scene = new THREE.Scene();
-            camera = new THREE.PlaneCamera ? new THREE.PerspectiveCamera(70, w / h, 0.01, 100) : new THREE.PerspectiveCamera(70, w / h, 0.01, 100);
-            camera.position.set(0, 0, 0);
-            camera.lookAt(0, 0, -1);
-
-            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-            renderer.setSize(w, h);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.setClearColor(0x000000, 0);
-            renderer.outputEncoding = THREE.sRGBEncoding;
-
-            document.getElementById('three-canvas').innerHTML = '';
-            document.getElementById('three-canvas').appendChild(renderer.domElement);
-
-            // Luces fuertes
-            scene.add(new THREE.AmbientLight(0xffffff, 3.0));
-            const d1 = new THREE.DirectionalLight(0xffffff, 2.0);
-            d1.position.set(3, 5, 3);
-            scene.add(d1);
-            const d2 = new THREE.DirectionalLight(0xffffff, 1.0);
-            d2.position.set(-3, -2, -3);
-            scene.add(d2);
-
-            // Environment map para materiales PBR
-            generateEnvironment();
-        }
-
-        function generateEnvironment() {
-            const pmrem = new THREE.PMREMGenerator(renderer);
-            pmrem.compileEquirectangularShader();
-            const envScene = new THREE.Scene();
-            envScene.background = new THREE.Color(0x999999);
-            envScene.add(new THREE.DirectionalLight(0xffffff, 2).translateZ(1));
-            envScene.add(new THREE.DirectionalLight(0x8888ff, 1).translateX(-1));
-            envScene.add(new THREE.DirectionalLight(0xffaa44, 0.5).translateY(-1));
-            const sphere = new THREE.Mesh(
-                new THREE.SphereGeometry(50, 16, 16),
-                new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.BackSide })
-            );
-            envScene.add(sphere);
-            scene.environment = pmrem.fromScene(envScene, 0.04).texture;
-            sphere.geometry.dispose();
-            sphere.material.dispose();
-            pmrem.dispose();
-        }
-
-        // ===================================================================
-        // LOOP PRINCIPAL — ESCANEO CONTINUO, NUNCA SE DETIENE
-        // ===================================================================
-        function tick() {
-            if (!isARRunning) return;
-            animationId = requestAnimationFrame(tick);
-
-            if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
-
-            // --- Escanear SIEMPRE ---
-            const maxScan = 640;
-            const sc = Math.min(1, maxScan / video.videoWidth);
-            scanCanvas.width = Math.floor(video.videoWidth * sc);
-            scanCanvas.height = Math.floor(video.videoHeight * sc);
-            scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
-
-            const imgData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
-            threshold(imgData);
-
-            const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" });
-            const marker = document.getElementById('marker-highlight');
-
-            if (code) {
-                // QR DETECTADO
-                qrLostFrames = 0;
-
-                const rawData = code.data.trim();
-                let modelId = rawData.startsWith('model=') ? rawData.split('=')[1] : rawData;
-                const modelEntry = modelsData.find(m => m.id === modelId);
-
-                if (modelEntry) {
-                    if (!activeModelId) {
-                        // Primera detección: cargar modelo
-                        activeModelId = modelId;
-                        isLoading = true;
-                        loadModel3D(modelEntry);
-                        showModelToast(modelEntry.name);
-                        document.getElementById('tracking-indicator').style.display = 'block';
-                    } else if (activeModelId !== modelId) {
-                        // QR diferente: cambiar modelo
-                        removeCurrentModel();
-                        activeModelId = modelId;
-                        isLoading = true;
-                        loadModel3D(modelEntry);
-                        showModelToast(modelEntry.name);
-                    }
-
-                    // ACTUALIZAR POSICIÓN DEL MODELO CADA FRAME
-                    if (currentModel && !isLoading) {
-                        updateModelTransform(code.location);
-                        marker.style.display = 'none';
-                        updateStatus("Modelo fijado al QR");
-                    } else if (isLoading) {
-                        // Mostrar marcador mientras carga
-                        drawMarker(code.location);
-                        updateStatus("Cargando modelo...");
-                    }
+            // --- Modal de Ayuda ---
+            function toggleHelp(show) {
+                if (show) {
+                    helpModal.classList.remove('hidden');
+                    helpModal.classList.add('flex');
                 } else {
-                    drawMarker(code.location);
-                    updateStatus("QR no reconocido: " + modelId);
-                }
-            } else {
-                // QR NO DETECTADO
-                marker.style.display = 'none';
-                qrLostFrames++;
-
-                if (qrLostFrames > GRACE_FRAMES) {
-                    // Fuera de grace period
-                    if (currentModel) {
-                        currentModel.visible = false;
-                    }
-                    updateStatus("QR perdido. Buscando...");
-                    setTrackingDots(false, false, false);
-                } else {
-                    // Grace period: mantener última posición
-                    if (currentModel) currentModel.visible = true;
-                    updateStatus("QR perdido... " + (GRACE_FRAMES - qrLostFrames));
+                    helpModal.classList.add('hidden');
+                    helpModal.classList.remove('flex');
                 }
             }
 
-            renderer.render(scene, camera);
-        }
-
-        // ===================================================================
-        // MAPEO DE COORDENADAS (object-fit: cover)
-        // ===================================================================
-        function getCoverParams() {
-            const va = video.videoWidth / video.videoHeight;
-            const sa = window.innerWidth / window.innerHeight;
-            if (sa > va) {
-                const rH = window.innerWidth / va;
-                return { rW: window.innerWidth, rH, oX: 0, oY: (window.innerHeight - rH) / 2 };
-            } else {
-                const rW = window.innerHeight * va;
-                return { rW, rH: window.innerHeight, oX: (window.innerWidth - rW) / 2, oY: 0 };
-            }
-        }
-
-        function canvasToScreen(cx, cy) {
-            const p = getCoverParams();
-            return {
-                x: p.oX + (cx / scanCanvas.width) * p.rW,
-                y: p.oY + (cy / scanCanvas.height) * p.rH
-            };
-        }
-
-        function canvasSizeToScreen(canvasSize) {
-            const p = getCoverParams();
-            return (canvasSize / scanCanvas.width) * p.rW;
-        }
-
-        // ===================================================================
-        // TRANSFORM DEL MODELO — POSICIÓN + ESCALA + ROTACIÓN DESDE EL QR
-        // ===================================================================
-        function updateModelTransform(loc) {
-            if (!currentModel) return;
-
-            const DEPTH = 3; // Plano Z donde se sitúa el modelo
-            const frustumH = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * DEPTH;
-            const frustumW = frustumH * camera.aspect;
-
-            // --- POSICIÓN: centro del QR → 3D ---
-            const center = {
-                x: (loc.topLeftCorner.x + loc.topRightCorner.x + loc.bottomLeftCorner.x + loc.bottomRightCorner.x) / 4,
-                y: (loc.topLeftCorner.y + loc.topRightCorner.y + loc.bottomLeftCorner.y + loc.bottomRightCorner.y) / 4
-            };
-            const scr = canvasToScreen(center.x, center.y);
-            const ndcX = (scr.x / window.innerWidth) * 2 - 1;
-            const ndcY = -(scr.y / window.innerHeight) * 2 + 1;
-
-            // Offset: modelo ligeramente ENCIMA del centro del QR
-            const topWidth = Math.hypot(loc.topRightCorner.x - loc.topLeftCorner.x, loc.topRightCorner.y - loc.topLeftCorner.y);
-            const bottomWidth = Math.hypot(loc.bottomRightCorner.x - loc.bottomLeftCorner.x, loc.bottomRightCorner.y - loc.bottomLeftCorner.y);
-            const leftHeight = Math.hypot(loc.bottomLeftCorner.x - loc.topLeftCorner.x, loc.bottomLeftCorner.y - loc.topLeftCorner.y);
-            const rightHeight = Math.hypot(loc.bottomRightCorner.x - loc.topRightCorner.x, loc.bottomRightCorner.y - loc.topRightCorner.y);
-            const avgHeight = (leftHeight + rightHeight) / 2;
-            const qrScreenH = canvasSizeToScreen(avgHeight);
-            const yOffset = (qrScreenH / window.innerHeight) * frustumH * 0.55; // 55% arriba del centro
-
-            const targetX = ndcX * frustumW / 2;
-            const targetY = ndcY * frustumH / 2 + yOffset;
-            const targetZ = -DEPTH;
-
-            // --- ESCALA: tamaño aparente del QR en pantalla ---
-            const avgWidth = (topWidth + bottomWidth) / 2;
-            const qrScreenW = canvasSizeToScreen(avgWidth);
-            // Referencia: QR ocupa 25% del ancho de pantalla = escala base
-            const refW = window.innerWidth * 0.25;
-            const targetScale = Math.max(0.01, (qrScreenW / refW) * baseModelScale * 1.5);
-
-            // --- ROTACIÓN Z: ángulo del borde superior del QR ---
-            const angleZ = Math.atan2(
-                loc.topRightCorner.y - loc.topLeftCorner.y,
-                loc.topRightCorner.x - loc.topLeftCorner.x
-            );
-
-            // --- TILT X/Y: distorsión de perspectiva del QR ---
-            const widthRatio = topWidth / Math.max(bottomWidth, 0.001);
-            const heightRatio = leftHeight / Math.max(rightHeight, 0.001);
-            const tiltX = Math.max(-0.4, Math.min(0.4, (1 - widthRatio) * 0.6));
-            const tiltY = Math.max(-0.4, Math.min(0.4, (heightRatio - 1) * 0.6));
-
-            // --- SUAVIZADO (evita vibración) ---
-            const s = SMOOTH;
-            smoothPos.x += (targetX - smoothPos.x) * (1 - s);
-            smoothPos.y += (targetY - smoothPos.y) * (1 - s);
-            smoothPos.z += (targetZ - smoothPos.z) * (1 - s);
-            smoothScale += (targetScale - smoothScale) * (1 - s);
-            smoothRotZ += (-angleZ - smoothRotZ) * (1 - s);
-            smoothTiltX += (tiltX - smoothTiltX) * (1 - s);
-            smoothTiltY += (tiltY - smoothTiltY) * (1 - s);
-
-            // Aplicar
-            currentModel.position.set(smoothPos.x, smoothPos.y, smoothPos.z);
-            currentModel.scale.setScalar(smoothScale);
-            currentModel.rotation.set(smoothTiltX, smoothTiltY, smoothRotZ);
-            currentModel.visible = true;
-
-            // Indicadores de tracking
-            setTrackingDots(true, true, true);
-        }
-
-        function setTrackingDots(pos, scl, rot) {
-            document.getElementById('dot-pos').className = 'track-dot ' + (pos ? 'on' : 'off');
-            document.getElementById('dot-scl').className = 'track-dot ' + (scl ? 'on' : 'off');
-            document.getElementById('dot-rot').className = 'track-dot ' + (rot ? 'on' : 'off');
-        }
-
-        // ===================================================================
-        // CARGA DEL MODELO 3D (solo carga, sin posicionar)
-        // ===================================================================
-        function loadModel3D(modelData) {
-            updateStatus("Descargando " + modelData.name + "...");
-
-            const loader = new THREE.GLTFLoader();
-            loader.load(modelData.url, (gltf) => {
-                // Si ya hay un modelo (cambio de QR), limpiarlo
-                removeCurrentModel();
-
-                currentModel = gltf.scene;
-
-                // Calcular escala base para normalizar a ~1 unidad
-                const box = new THREE.Box3().setFromObject(currentModel);
-                const size = box.getSize(new THREE.Vector3());
-                const maxDim = Math.max(size.x, size.y, size.z, 0.001);
-                baseModelScale = 1.2 / maxDim;
-
-                // Centrar el modelo en su propio origen
-                const center3D = box.getCenter(new THREE.Vector3());
-                currentModel.position.sub(center3D);
-
-                // Forzar visibilidad de materiales
-                currentModel.traverse((node) => {
-                    if (node.isMesh) {
-                        if (!node.material) {
-                            node.material = new THREE.MeshStandardMaterial({ color: 0x00ff88, roughness: 0.4, metalness: 0.1 });
-                        }
-                        if (node.material.color) {
-                            const c = node.material.color;
-                            if (c.r < 0.05 && c.g < 0.05 && c.b < 0.05) c.setHex(0x00ff88);
-                        }
-                        if (node.material.roughness !== undefined) {
-                            node.material.roughness = Math.min(node.material.roughness, 0.65);
-                        }
-                    }
-                });
-
-                scene.add(currentModel);
-                isLoading = false;
-                updateStatus("Modelo listo. Fijando al QR...");
-
-            }, (progress) => {
-                if (progress.total > 0) {
-                    updateStatus("Descargando... " + Math.round(progress.loaded / progress.total * 100) + "%");
-                }
-            }, (error) => {
-                console.error("Error GLB:", error);
-                removeCurrentModel();
-                createFallbackCube();
-                isLoading = false;
+            helpBtn.addEventListener('click', () => toggleHelp(true));
+            closeHelpBtn.addEventListener('click', () => toggleHelp(false));
+            closeHelpIcon.addEventListener('click', () => toggleHelp(false));
+            helpModal.addEventListener('click', (e) => {
+                if (e.target === helpModal) toggleHelp(false);
             });
-        }
 
-        function removeCurrentModel() {
-            if (!currentModel) return;
-            scene.remove(currentModel);
-            currentModel.traverse((child) => {
-                if (child.geometry) child.geometry.dispose();
-                if (child.material) {
-                    if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
-                    else child.material.dispose();
+            // Manejo del estado de carga inicial
+            modelViewer.addEventListener('model-visibility', (event) => {
+                if (event.detail.visible) {
+                    document.getElementById('loading-spinner').style.display = 'none';
                 }
             });
-            currentModel = null;
-        }
-
-        function createFallbackCube() {
-            const group = new THREE.Group();
-
-            const solidMat = new THREE.MeshStandardMaterial({
-                color: 0x00ff44, roughness: 0.3, metalness: 0.1,
-                transparent: true, opacity: 0.75
-            });
-            group.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), solidMat));
-
-            const wireMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
-            group.add(new THREE.Mesh(new THREE.BoxGeometry(1.06, 1.06, 1.06), wireMat));
-
-            // Ejes de referencia
-            const axLen = 0.8;
-            [
-                [new THREE.Vector3(0,0,0), new THREE.Vector3(axLen,0,0), 0xff0000],
-                [new THREE.Vector3(0,0,0), new THREE.Vector3(0,axLen,0), 0x00ff00],
-                [new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,axLen), 0x0088ff]
-            ].forEach(([a, b, c]) => {
-                const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
-                group.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: c })));
-            });
-
-            baseModelScale = 1.0;
-            currentModel = group;
-            scene.add(currentModel);
-            updateStatus("Cubo verde (fallback) listo");
-        }
-
-        // ===================================================================
-        // UTILIDADES
-        // ===================================================================
-        function threshold(imageData) {
-            const d = imageData.data;
-            for (let i = 0; i < d.length; i += 4) {
-                const v = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
-                const bin = v >= 90 ? 255 : 0;
-                d[i] = d[i + 1] = d[i + 2] = bin;
-            }
-        }
-
-        function drawMarker(loc) {
-            const marker = document.getElementById('marker-highlight');
-            marker.style.display = 'block';
-            const center = {
-                x: (loc.topLeftCorner.x + loc.topRightCorner.x + loc.bottomLeftCorner.x + loc.bottomRightCorner.x) / 4,
-                y: (loc.topLeftCorner.y + loc.topRightCorner.y + loc.bottomLeftCorner.y + loc.bottomRightCorner.y) / 4
-            };
-            const topW = Math.hypot(loc.topRightCorner.x - loc.topLeftCorner.x, loc.topRightCorner.y - loc.topLeftCorner.y);
-            const botW = Math.hypot(loc.bottomRightCorner.x - loc.bottomLeftCorner.x, loc.bottomRightCorner.y - loc.bottomLeftCorner.y);
-            const avgW = (topW + botW) / 2;
-
-            const scr = canvasToScreen(center.x, center.y);
-            const scrW = canvasSizeToScreen(avgW);
-
-            marker.style.left = scr.x + 'px';
-            marker.style.top = scr.y + 'px';
-            marker.style.width = scrW + 'px';
-            marker.style.height = scrW + 'px';
-        }
-
-        function updateStatus(msg) {
-            document.getElementById('ar-status').textContent = msg;
-        }
-
-        function showModelToast(name) {
-            const toast = document.getElementById('model-found-toast');
-            document.getElementById('detected-model-name').textContent = name;
-            toast.classList.remove('opacity-0', 'translate-y-4');
-            setTimeout(() => toast.classList.add('opacity-0', 'translate-y-4'), 3000);
-        }
-
-        window.addEventListener('resize', () => {
-            if (camera && renderer && isARRunning) {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            }
         });
     </script>
 </body>
