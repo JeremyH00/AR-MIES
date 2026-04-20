@@ -2,415 +2,359 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIES-AR • SurfaceFit AR - Generador QR</title>
-    <meta name="description" content="Visualización profesional de modelos 3D en Realidad Aumentada con detección automática de superficies y generación de QR.">
-
-    <!-- Tailwind CSS (CDN) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MIES-AR • Galería QR & Vision AR</title>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Google <model-viewer> (CDN) -->
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
-
-    <!-- Librería para Generar QR (qrcode.js) -->
+    
+    <!-- Librerías Externas (CDNs) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
-    <!-- Configuración de Tailwind y Estilos Personalizados -->
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: {
-                        black: '#000000',
-                        white: '#ffffff',
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'system-ui', 'sans-serif'],
-                    }
+                    colors: { black: '#000', white: '#fff', gray: { 800: '#1f1f1f', 900: '#111' } }
                 }
             }
         }
     </script>
 
     <style>
-        /* Estilos base */
-        body {
-            background-color: #000;
-            color: #fff;
-            font-family: 'Inter', sans-serif;
-            overflow-x: hidden;
-        }
-
-        model-viewer {
-            width: 100%;
-            height: 100%;
-            --poster-color: transparent;
-            --progress-bar-color: #ffffff;
-        }
-
-        /* Ocultar botón AR nativo */
-        model-viewer::part(ar-button) { display: none; }
-
-        .loading-overlay {
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(5px);
-        }
-
-        .drop-zone {
-            border: 2px dashed #333;
-            transition: all 0.3s ease;
-        }
-        .drop-zone.active {
-            border-color: #fff;
-            background-color: rgba(255, 255, 255, 0.05);
-        }
-
-        /* Estilos para los contenedores de QR */
-        #qr-1 img, #qr-2 img, #qr-3 img {
-            display: block;
-            margin: 0 auto;
-        }
+        body { background-color: #000; color: #fff; font-family: 'Inter', sans-serif; overflow-x: hidden; }
         
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #000; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        /* Capas de AR */
+        #ar-container { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999; }
+        #video-feed { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+        #three-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
+        #scan-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; border: 2px solid rgba(255,255,255,0.2); box-shadow: inset 0 0 50px rgba(0,0,0,0.5); }
+        
+        /* Indicador de detección */
+        #marker-highlight {
+            position: absolute; border: 4px solid #00ff00; box-shadow: 0 0 10px #00ff00; display: none; z-index: 30;
+            transform: translate(-50%, -50%); width: 100px; height: 100px; border-radius: 8px;
+        }
+
+        /* Estilos de Galería */
+        .model-card { transition: transform 0.2s; }
+        .model-card:hover { transform: translateY(-5px); }
+        .qr-placeholder { background: white; padding: 10px; border-radius: 8px; display: inline-block; }
     </style>
 </head>
-<body class="flex flex-col min-h-screen">
+<body>
 
-    <!-- Encabezado -->
-    <header class="w-full border-b border-white/10 bg-black sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                </svg>
-                <h1 class="text-xl font-bold tracking-wider uppercase">MIES-AR</h1>
-            </div>
-            <div class="hidden md:block">
-                <span class="text-xs font-mono text-white/50 border border-white/20 px-2 py-1 rounded">v1.1 + QR Gen</span>
-            </div>
-        </div>
-    </header>
+    <!-- PANTALLA 1: GALERÍA DE MODELOS -->
+    <main id="gallery-view" class="min-h-screen p-6 pb-24">
+        <header class="max-w-7xl mx-auto mb-8 flex justify-between items-center border-b border-white/10 pb-4">
+            <h1 class="text-3xl font-bold tracking-tighter">MIES-AR <span class="text-gray-500 text-lg font-normal">| Galería QR</span></h1>
+            <button onclick="startAR()" class="bg-white text-black font-bold px-6 py-3 rounded-full flex items-center gap-2 hover:bg-gray-200 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                Escanear QR (AR)
+            </button>
+        </header>
 
-    <!-- Contenido Principal -->
-    <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
-            
-            <!-- Columna Izquierda: Visualizador 3D -->
-            <section class="lg:col-span-8 flex flex-col gap-4">
-                <div class="relative w-full aspect-square lg:aspect-[4/3] bg-[#111] border border-white/10 rounded-lg overflow-hidden group shadow-2xl">
-                    
-                    <model-viewer 
-                        id="ar-model"
-                        src="https://modelviewer.dev/shared-assets/models/NeilArmstrong.glb" 
-                        alt="Modelo 3D de ejemplo para AR"
-                        ar 
-                        ar-modes="webxr scene-viewer quick-look" 
-                        ar-scale="auto"
-                        ar-placement="auto"
-                        camera-controls 
-                        touch-action="pan-y"
-                        auto-rotate 
-                        auto-rotate-delay="1000"
-                        camera-orbit="45deg 55deg 2.5m"
-                        min-camera-orbit="auto auto 2.5m"
-                        max-camera-orbit="auto auto 4m"
-                        interaction-prompt="none"
-                        loading="eager"
-                        reveal="auto"
-                        aria-label="Visualizador 3D interactivo"
-                    >
-                        <div id="loading-spinner" slot="poster" class="flex items-center justify-center w-full h-full bg-black">
-                            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
-                        </div>
-                    </model-viewer>
-
-                    <div class="absolute bottom-6 right-6 z-10">
-                        <button id="ar-button-trigger" class="flex items-center gap-2 bg-white text-black font-bold py-3 px-6 rounded-full shadow-lg hover:bg-gray-200 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white/50" aria-label="Iniciar modo Realidad Aumentada">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                            Iniciar AR – Colocar en superficie
-                        </button>
-                    </div>
-
-                    <div id="ar-status-toast" class="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black/80 text-white text-sm px-4 py-2 rounded-full border border-white/20 opacity-0 transition-opacity duration-300 pointer-events-none flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                        <span id="ar-status-text">Buscando superficie...</span>
-                    </div>
-                </div>
-
-                <div class="flex justify-between items-center text-sm text-white/50 px-2">
-                    <span id="model-name">Modelo: NeilArmstrong.glb</span>
-                    <span id="interaction-hint">Arrastra para rotar • Scroll para zoom</span>
-                </div>
-            </section>
-
-            <!-- Columna Derecha: Controles, QR y Ayuda -->
-            <section class="lg:col-span-4 flex flex-col gap-6">
-                
-                <!-- Tarjeta: Generador de Códigos QR (NUEVA) -->
-                <div class="bg-white/5 border border-white/10 p-6 rounded-lg">
-                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zM6 16H4a2 2 0 01-2-2V8a2 2 0 012-2h16a2 2 0 012 2v6a2 2 0 01-2 2h-2"/></svg>
-                        Generador de QR
-                    </h2>
-                    
-                    <div class="mb-4">
-                        <label class="block text-xs text-white/50 mb-2">Enlace de la página web:</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="qr-input" value="https://jeremyh00.github.io/MIES-AR/" class="flex-1 bg-black border border-white/20 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-white">
-                            <button id="btn-generate-qr" class="bg-white text-black px-3 py-2 rounded text-sm font-bold hover:bg-gray-200">Generar</button>
-                        </div>
-                    </div>
-
-                    <!-- Área de Visualización de QRs -->
-                    <div class="grid grid-cols-1 gap-4">
-                        <!-- QR 1: Estándar -->
-                        <div class="bg-white p-3 rounded flex items-center justify-between cursor-pointer hover:opacity-80 transition" title="Clic derecho para descargar">
-                            <div class="text-black text-xs font-bold mr-2 text-center">
-                                <div>ESTÁNDAR</div>
-                                <div class="text-[10px] font-normal opacity-60">Blanco/Negro</div>
-                            </div>
-                            <div id="qr-1" class="bg-white p-1"></div>
-                        </div>
-
-                        <!-- QR 2: Invertido -->
-                        <div class="bg-[#111] border border-white/10 p-3 rounded flex items-center justify-between cursor-pointer hover:bg-[#1a1a1a] transition" title="Clic derecho para descargar">
-                            <div class="text-white text-xs font-bold mr-2 text-center">
-                                <div>OSCURO</div>
-                                <div class="text-[10px] font-normal opacity-60">Negro/Blanco</div>
-                            </div>
-                            <div id="qr-2" class="bg-[#111] p-1"></div>
-                        </div>
-
-                        <!-- QR 3: Color -->
-                        <div class="bg-[#0f172a] border border-teal-900/30 p-3 rounded flex items-center justify-between cursor-pointer hover:bg-[#162032] transition" title="Clic derecho para descargar">
-                            <div class="text-teal-400 text-xs font-bold mr-2 text-center">
-                                <div>ACENTO</div>
-                                <div class="text-[10px] font-normal opacity-60">Teal/Negro</div>
-                            </div>
-                            <div id="qr-3" class="bg-[#0f172a] p-1"></div>
-                        </div>
-                    </div>
-                    
-                    <p class="text-[10px] text-white/30 mt-3 text-center">
-                        Haz clic derecho en el código QR deseado y selecciona "Guardar imagen" para descargarlo.
-                    </p>
-                </div>
-
-                <!-- Tarjeta: Carga de Archivos -->
-                <div class="bg-white/5 border border-white/10 p-6 rounded-lg">
-                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                        Cargar Modelo Propio
-                    </h2>
-                    
-                    <div id="drop-zone" class="drop-zone rounded-lg p-8 text-center cursor-pointer hover:border-white/50 relative">
-                        <input type="file" id="file-input" accept=".glb,.gltf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" aria-label="Subir archivo GLB o GLTF">
-                        <div class="flex flex-col items-center justify-center gap-3 pointer-events-none">
-                            <svg class="w-10 h-10 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            <p class="text-sm font-medium text-white/80">Arrastra tu archivo aquí</p>
-                            <p class="text-xs text-white/40">o haz clic para explorar (GLB/GLTF)</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tarjeta: Instrucciones -->
-                <div class="bg-white/5 border border-white/10 p-6 rounded-lg">
-                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        Instrucciones
-                    </h2>
-                    <ol class="space-y-4 text-sm text-white/70 list-decimal list-inside">
-                        <li><span class="text-white font-medium">Visualización:</span> Arrastra para rotar el modelo.</li>
-                        <li><span class="text-white font-medium">Iniciar AR:</span> Presiona el botón blanco "Iniciar AR".</li>
-                        <li><span class="text-white font-medium">Detección:</span> Apunta la cámara al suelo.</li>
-                    </ol>
-                    <button id="help-btn" class="mt-4 w-full py-2 border border-white/20 rounded hover:bg-white/10 transition-colors text-xs font-medium">Ayuda completa</button>
-                </div>
-            </section>
+        <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="gallery-grid">
+            <!-- Las tarjetas se generarán con JS aquí -->
         </div>
     </main>
 
-    <!-- Footer -->
-    <footer class="w-full border-t border-white/10 py-6 mt-8 bg-black">
-        <div class="max-w-7xl mx-auto px-4 text-center">
-            <p class="text-white/40 text-xs">&copy; 2023 MIES-AR. SurfaceFit AR v1.1</p>
-        </div>
-    </footer>
+    <!-- PANTALLA 2: VISOR AR -->
+    <div id="ar-container">
+        <video id="video-feed" playsinline muted></video>
+        <canvas id="three-canvas"></canvas>
+        <div id="scan-overlay"></div>
+        <div id="marker-highlight"></div>
 
-    <!-- Modal de Ayuda -->
-    <div id="help-modal" class="fixed inset-0 z-[100] bg-black/90 hidden items-center justify-center backdrop-blur-sm p-4">
-        <div class="bg-[#111] border border-white/20 rounded-lg max-w-md w-full p-6 relative">
-            <button id="close-help" class="absolute top-4 right-4 text-white/50 hover:text-white">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        <!-- UI Overlay del AR -->
+        <div class="absolute top-0 left-0 w-full p-4 z-40 flex justify-between items-start pointer-events-none">
+            <button onclick="stopAR()" class="pointer-events-auto bg-red-600 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-lg">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                Cerrar AR
             </button>
-            <h3 class="text-xl font-bold mb-4 text-white">Soporte y Dispositivos</h3>
-            <div class="space-y-3 text-sm text-white/70">
-                <p><strong class="text-white">iOS (iPhone/iPad):</strong> Safari ARKit.</p>
-                <p><strong class="text-white">Android:</strong> Chrome + ARCore.</p>
-                <p><strong class="text-white">PC:</strong> Solo vista previa 3D.</p>
+            <div id="ar-status" class="bg-black/60 backdrop-blur px-3 py-1 rounded text-sm font-mono text-green-400 border border-green-500/30">
+                Buscando código QR...
             </div>
-            <button id="close-help-btn" class="mt-6 w-full bg-white text-black py-2 rounded font-medium hover:bg-gray-200">Entendido</button>
+        </div>
+        
+        <!-- Modelo detectado toast -->
+        <div id="model-found-toast" class="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-white text-black px-6 py-3 rounded-lg shadow-2xl z-50 text-center transition-all duration-300 opacity-0 translate-y-4">
+            <div class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Modelo Detectado</div>
+            <div id="detected-model-name" class="text-lg font-bold">Nombre del Modelo</div>
         </div>
     </div>
 
-    <!-- Scripts de Lógica -->
+    <!-- JAVASCRIPT LOGIC -->
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Referencias al DOM
-            const modelViewer = document.getElementById('ar-model');
-            const fileInput = document.getElementById('file-input');
-            const dropZone = document.getElementById('drop-zone');
-            const modelNameSpan = document.getElementById('model-name');
-            const arButton = document.getElementById('ar-button-trigger');
-            const arStatusToast = document.getElementById('ar-status-toast');
-            const arStatusText = document.getElementById('ar-status-text');
-            const helpModal = document.getElementById('help-modal');
-            const helpBtn = document.getElementById('help-btn');
-            const closeHelpBtn = document.getElementById('close-help-btn');
-            const closeHelpIcon = document.getElementById('close-help');
+        // --- 1. CONFIGURACIÓN DE MODELOS ---
+        // Puedes añadir tus propios archivos GLB aquí.
+        // Usamos modelos públicos de prueba de Three.js y CDN.
+        const modelsData = [
+            { id: 'skull-001', name: 'Cráneo 3D', url: 'https://threejs.org/examples/models/gltf/Skull.glb', color: 0xffffff },
+            { id: 'damaged-helmet', name: 'Casco Dañado', url: 'https://threejs.org/examples/models/gltf/DamagedHelmet.glb', color: 0xff0000 },
+            { id: 'robot-001', name: 'Robot Expressive', url: 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb', color: 0x00ff00 }
+        ];
 
-            // --- GESTIÓN DE QR ---
-            const qrInput = document.getElementById('qr-input');
-            const btnGenerateQr = document.getElementById('btn-generate-qr');
+        // --- 2. RENDERIZADO DE GALERÍA Y GENERACIÓN QR ---
+        const galleryGrid = document.getElementById('gallery-grid');
+
+        modelsData.forEach(model => {
+            // Crear QR único que codifica el ID del modelo
+            const qrContainerId = `qr-${model.id}`;
             
-            function generateQRCodes() {
-                const url = qrInput.value.trim();
-                if (!url) return alert('Por favor ingresa una URL válida');
+            const cardHTML = `
+                <div class="bg-gray-900 border border-white/10 rounded-xl overflow-hidden model-card flex flex-col h-full">
+                    <div class="bg-gray-800 aspect-video flex items-center justify-center relative group">
+                        <!-- Icono 3D placeholder -->
+                        <svg class="w-16 h-16 text-gray-600 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    </div>
+                    <div class="p-6 flex flex-col flex-grow">
+                        <h3 class="text-xl font-bold mb-2">${model.name}</h3>
+                        <p class="text-sm text-gray-400 mb-4 flex-grow">ID del modelo: <span class="font-mono text-white bg-white/10 px-1 rounded">${model.id}</span></p>
+                        
+                        <div class="bg-white p-4 rounded-lg self-center">
+                            <div id="${qrContainerId}"></div>
+                        </div>
+                        <p class="text-xs text-center text-gray-500 mt-2">Escanear para ver en AR</p>
+                    </div>
+                </div>
+            `;
+            galleryGrid.insertAdjacentHTML('beforeend', cardHTML);
 
-                // Limpiar códigos anteriores
-                document.getElementById('qr-1').innerHTML = '';
-                document.getElementById('qr-2').innerHTML = '';
-                document.getElementById('qr-3').innerHTML = '';
-
-                // Opciones comunes
-                const commonOptions = {
-                    text: url,
-                    width: 80,
-                    height: 80,
-                    correctLevel : QRCode.CorrectLevel.H
-                };
-
-                // QR 1: Estándar (Negro sobre Blanco)
-                new QRCode(document.getElementById("qr-1"), {
-                    ...commonOptions,
-                    colorDark : "#000000",
-                    colorLight : "#ffffff"
-                });
-
-                // QR 2: Invertido (Blanco sobre Negro)
-                new QRCode(document.getElementById("qr-2"), {
-                    ...commonOptions,
-                    colorDark : "#ffffff",
-                    colorLight : "#111111" // Fondo gris oscuro para que no se vea sucio
-                });
-
-                // QR 3: Color Acento (Teal sobre Azul Oscuro)
-                new QRCode(document.getElementById("qr-3"), {
-                    ...commonOptions,
-                    colorDark : "#2dd4bf", // Teal-400
-                    colorLight : "#0f172a" // Slate-900
-                });
-            }
-
-            // Generar al cargar y al hacer clic
-            btnGenerateQr.addEventListener('click', generateQRCodes);
-            
-            // Generar inicial después de un pequeño delay para asegurar que la librería cargó
-            setTimeout(generateQRCodes, 500);
-
-            // --- GESTIÓN DE CARGA DE MODELOS ---
-            function loadModel(file) {
-                if (!file) return;
-                const validExtensions = ['glb', 'gltf'];
-                const fileExtension = file.name.split('.').pop().toLowerCase();
-                if (!validExtensions.includes(fileExtension)) {
-                    showToast('Error: Por favor sube archivos .glb o .gltf', 'error');
-                    return;
-                }
-                const objectURL = URL.createObjectURL(file);
-                modelViewer.src = objectURL;
-                modelNameSpan.textContent = `Modelo: ${file.name}`;
-                showToast('Modelo cargado correctamente.', 'success');
-            }
-
-            fileInput.addEventListener('change', (e) => loadModel(e.target.files[0]));
-
-            dropZone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                dropZone.classList.add('active');
+            // Generar el QR con la librería qrcode.js
+            // Codificamos una URL si existiera, o simplemente el ID string
+            // Nota: Para producción real, codifica la URL completa de tu página web: `https://tusitio.com/index.html?model=${model.id}`
+            new QRCode(document.getElementById(qrContainerId), {
+                text: `model=${model.id}`,
+                width: 128,
+                height: 128,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
             });
-
-            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('active'));
-
-            dropZone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('active');
-                if (e.dataTransfer.files.length > 0) loadModel(e.dataTransfer.files[0]);
-            });
-
-            // --- LÓGICA AR Y UI ---
-            if (!modelViewer.canActivateAR) {
-                arButton.style.display = 'none';
-                const parent = arButton.parentElement;
-                const noArMsg = document.createElement('div');
-                noArMsg.className = "text-xs text-red-400 text-center bg-black/80 px-3 py-2 rounded border border-red-900/50";
-                noArMsg.textContent = "Tu navegador no soporta WebXR.";
-                parent.appendChild(noArMsg);
-            }
-
-            arButton.addEventListener('click', () => {
-                arStatusToast.style.opacity = '1';
-                arStatusText.textContent = "Iniciando cámara y buscando superficie...";
-                modelViewer.activateAR().catch((error) => {
-                    console.error("Error al iniciar AR:", error);
-                    arStatusText.textContent = "Error al iniciar AR.";
-                    setTimeout(() => { arStatusToast.style.opacity = '0'; }, 3000);
-                });
-            });
-
-            modelViewer.addEventListener('load', () => {
-                document.getElementById('loading-spinner').style.display = 'none';
-            });
-
-            modelViewer.addEventListener('model-visibility', (event) => {
-                if (event.detail.visible) document.getElementById('loading-spinner').style.display = 'none';
-            });
-
-            // --- TOAST SYSTEM ---
-            function showToast(message, type = 'info') {
-                const toast = document.createElement('div');
-                toast.className = `fixed bottom-4 left-4 z-50 px-4 py-3 rounded shadow-lg border text-sm transition-all duration-500 transform translate-y-10 opacity-0 ${
-                    type === 'error' ? 'bg-red-900/90 border-red-500 text-red-100' : 'bg-white text-black border-transparent'
-                }`;
-                toast.textContent = message;
-                document.body.appendChild(toast);
-                requestAnimationFrame(() => toast.classList.remove('translate-y-10', 'opacity-0'));
-                setTimeout(() => {
-                    toast.classList.add('translate-y-10', 'opacity-0');
-                    setTimeout(() => toast.remove(), 500);
-                }, 3000);
-            }
-
-            // --- HELP MODAL ---
-            function toggleHelp(show) {
-                if (show) {
-                    helpModal.classList.remove('hidden');
-                    helpModal.classList.add('flex');
-                } else {
-                    helpModal.classList.add('hidden');
-                    helpModal.classList.remove('flex');
-                }
-            }
-            helpBtn.addEventListener('click', () => toggleHelp(true));
-            closeHelpBtn.addEventListener('click', () => toggleHelp(false));
-            closeHelpIcon.addEventListener('click', () => toggleHelp(false));
-            helpModal.addEventListener('click', (e) => { if (e.target === helpModal) toggleHelp(false); });
         });
+
+        // --- 3. SISTEMA AR THREE.JS ---
+        let video, canvas, ctx, scene, camera, renderer, currentModel = null;
+        let animationId;
+        let isARRunning = false;
+
+        async function startAR() {
+            document.getElementById('gallery-view').style.display = 'none';
+            document.getElementById('ar-container').style.display = 'block';
+            isARRunning = true;
+
+            // Iniciar Cámara
+            video = document.createElement('video');
+            video.playsInline = true;
+            video.muted = true;
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true); // required to tell iOS safari we don't want fullscreen
+                video.play();
+                requestAnimationFrame(tick);
+            } catch (err) {
+                alert("Error al acceder a la cámara: " + err);
+                stopAR();
+                return;
+            }
+
+            // Iniciar Three.js
+            initThreeJS();
+        }
+
+        function stopAR() {
+            isARRunning = false;
+            if (video && video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            document.getElementById('ar-container').style.display = 'none';
+            document.getElementById('gallery-view').style.display = 'block';
+            cancelAnimationFrame(animationId);
+        }
+
+        function initThreeJS() {
+            const container = document.getElementById('ar-container');
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+
+            scene = new THREE.Scene();
+            
+            // Cámara de Three.js debe coincidir con el campo de visión de la cámara del dispositivo
+            camera = new THREE.PerspectiveCamera(70, w / h, 0.01, 1000);
+            camera.position.z = 5;
+
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(w, h);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('three-canvas').appendChild(renderer.domElement);
+
+            // Luz
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+            dirLight.position.set(1, 1, 1);
+            scene.add(dirLight);
+        }
+
+        // --- 4. LÓGICA DE DETECCIÓN Y TRACKING ---
+        function tick() {
+            if (!isARRunning) return;
+            animationId = requestAnimationFrame(tick);
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                // Dibujar video en un canvas oculto para analizarlo con jsQR
+                // Optimización: No crear canvas nuevo cada frame, usar uno global si fuera producción estricta
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = video.videoWidth;
+                tempCanvas.height = video.videoHeight;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+                
+                // Analizar el cuadro actual buscando un QR
+                const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+
+                const statusDiv = document.getElementById('ar-status');
+                const markerHighlight = document.getElementById('marker-highlight');
+
+                if (code) {
+                    // --- QR DETECTADO ---
+                    
+                    // 1. Mostrar UI de éxito
+                    statusDiv.textContent = "QR Detectado";
+                    statusDiv.classList.replace('text-green-400', 'text-blue-400');
+                    
+                    // 2. Dibujar rectángulo alrededor del QR (Overlay 2D)
+                    drawBoundingBox(code.location);
+
+                    // 3. Procesar el contenido del QR
+                    const rawData = code.data;
+                    console.log("QR Found:", rawData);
+                    
+                    // Lógica simple: buscar si el QR contiene "model=ID"
+                    let modelId = null;
+                    if (rawData.includes('model=')) {
+                        modelId = rawData.split('model=')[1];
+                    } else {
+                        // Fallback: si el QR es solo el ID
+                        const found = modelsData.find(m => m.id === rawData);
+                        if(found) modelId = rawData;
+                    }
+
+                    if (modelId) {
+                        loadOrPlaceModel(modelId);
+                        showModelToast(modelsData.find(m => m.id === modelId)?.name || "Modelo Desconocido");
+                    }
+
+                } else {
+                    // Sin QR
+                    statusDiv.textContent = "Buscando código QR...";
+                    statusDiv.classList.replace('text-blue-400', 'text-green-400');
+                    markerHighlight.style.display = 'none';
+                    
+                    // Opcional: Ocultar modelo si se pierde el QR por más de X segundos
+                    // if (currentModel) currentModel.visible = false; 
+                }
+
+                renderer.render(scene, camera);
+            }
+        }
+
+        // Dibuja el recuadro verde alrededor del QR
+        function drawBoundingBox(location) {
+            const marker = document.getElementById('marker-highlight');
+            marker.style.display = 'block';
+            
+            // Necesitamos mapear las coordenadas del video a las coordenadas de la pantalla
+            // Simplificación: Asumiendo video llena pantalla (object-fit: cover) o usando los puntos medios
+            // Aquí calculamos el centro aproximado para el cuadro 2D
+            const topLeft = location.topLeftCorner;
+            const bottomRight = location.bottomRightCorner;
+            
+            // Coordenadas relativas (0 a 1)
+            const x = topLeft.x / document.getElementById('video-feed').videoWidth;
+            const y = topLeft.y / document.getElementById('video-feed').videoHeight;
+            const w = (bottomRight.x - topLeft.x) / document.getElementById('video-feed').videoWidth;
+            const h = (bottomRight.y - topLeft.y) / document.getElementById('video-feed').videoHeight;
+
+            // Mapeo a pantalla (window)
+            marker.style.left = (x * window.innerWidth) + 'px';
+            marker.style.top = (y * window.innerHeight) + 'px';
+            marker.style.width = (w * window.innerWidth) + 'px';
+            marker.style.height = (h * window.innerHeight) + 'px';
+        }
+
+        // --- 5. GESTIÓN DEL MODELO 3D ---
+        function loadOrPlaceModel(modelId) {
+            // Si ya tenemos un modelo cargado y es el mismo, solo actualizamos su posición
+            if (currentModel && currentModel.userData.id === modelId) {
+                // Aquí iría la lógica compleja de tracking (proyectar coordenadas del QR al mundo 3D)
+                // Para esta demo, mantenemos el modelo en el centro o sobre el QR visualmente
+                
+                // Mapeo simple: Poner el modelo en el centro de la pantalla (donde estamos mirando)
+                // En una app real, calculamos la posición Z basada en el tamaño del QR para estimar distancia
+                
+                // Animación flotante suave
+                const time = Date.now() * 0.001;
+                if (currentModel) {
+                    currentModel.rotation.y = time; 
+                    // currentModel.position.set(0, 0, -2); // Fijo en centro
+                }
+                return;
+            }
+
+            // Si no hay modelo o es diferente, cargar nuevo
+            const modelData = modelsData.find(m => m.id === modelId);
+            if (!modelData) return;
+
+            // Limpiar anterior
+            if (currentModel) {
+                scene.remove(currentModel);
+            }
+
+            const loader = new THREE.GLTFLoader();
+            loader.load(modelData.url, (gltf) => {
+                currentModel = gltf.scene;
+                currentModel.userData.id = modelId; // Guardar ID para referencias futuras
+                
+                // Escalar modelo para que se vea bien
+                currentModel.scale.set(0.5, 0.5, 0.5); 
+                scene.add(currentModel);
+
+            }, undefined, (error) => {
+                console.error('Error cargando modelo:', error);
+            });
+        }
+
+        function showModelToast(name) {
+            const toast = document.getElementById('model-found-toast');
+            const nameEl = document.getElementById('detected-model-name');
+            nameEl.textContent = name;
+            toast.classList.remove('opacity-0', 'translate-y-4');
+            
+            // Ocultar después de 3 segundos
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4');
+            }, 3000);
+        }
+
+        // Ajustar tamaño al rotar pantalla
+        window.addEventListener('resize', () => {
+            if(camera && renderer) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
+
     </script>
 </body>
 </html>
