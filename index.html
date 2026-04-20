@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MIES-AR • Galería QR & Carga Personalizada</title>
+    <title>MIES-AR • Anclaje Preciso</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -32,25 +32,14 @@
         #video-feed { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
         #three-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         
-        /* Indicador visual del QR detectado */
+        /* Marcador de detección */
         #marker-highlight {
-            position: absolute; border: 4px solid #00ff00; box-shadow: 0 0 15px #00ff00; display: none; z-index: 30;
+            position: absolute; border: 2px dashed #00ff00; box-shadow: 0 0 10px #00ff00; display: none; z-index: 30;
             transform: translate(-50%, -50%); pointer-events: none;
         }
 
-        /* Zona de Arrastrar y Soltar */
-        .drop-zone {
-            border: 2px dashed #333;
-            transition: all 0.3s ease;
-            background: rgba(255,255,255,0.02);
-        }
-        .drop-zone.active {
-            border-color: #fff;
-            background: rgba(255,255,255,0.1);
-            transform: scale(1.02);
-        }
-
-        /* Estilos de Galería */
+        .drop-zone { border: 2px dashed #333; transition: all 0.3s ease; background: rgba(255,255,255,0.02); }
+        .drop-zone.active { border-color: #fff; background: rgba(255,255,255,0.1); transform: scale(1.02); }
         .model-card { transition: all 0.3s ease; border: 1px solid #333; }
         .model-card:hover { transform: translateY(-5px); border-color: #fff; }
         .qr-container { background: white; padding: 10px; border-radius: 8px; display: inline-block; }
@@ -58,263 +47,179 @@
 </head>
 <body>
 
-    <!-- PANTALLA 1: GALERÍA DE MODELOS -->
+    <!-- GALERÍA -->
     <main id="gallery-view" class="min-h-screen p-4 md:p-8 pb-24">
         <header class="max-w-6xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4 border-b border-white/10 pb-6">
             <div>
                 <h1 class="text-3xl font-bold tracking-tighter">MIES-AR</h1>
-                <p class="text-gray-500">Galería, Carga Personalizada y Escáner QR.</p>
+                <p class="text-gray-500">Anclaje Real: El modelo se pegará al código QR.</p>
             </div>
             <button onclick="startAR()" class="bg-white text-black font-bold px-8 py-3 rounded-full flex items-center gap-2 hover:bg-gray-200 transition shadow-lg active:scale-95">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                Escanear Códigos QR
+                Escanear QR
             </button>
         </header>
 
-        <!-- SECCIÓN: SUBIR MODELO PROPIO -->
+        <!-- CARGA -->
         <div class="max-w-6xl mx-auto mb-10">
             <div class="relative drop-zone rounded-xl p-8 text-center cursor-pointer group" id="drop-zone-wrapper">
-                <input type="file" id="file-input" accept=".glb,.gltf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" aria-label="Subir archivo GLB o GLTF">
-                
+                <input type="file" id="file-input" accept=".glb,.gltf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                 <div class="flex flex-col items-center justify-center gap-4 pointer-events-none">
                     <div class="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-white/20 transition">
                         <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                     </div>
                     <div>
                         <h3 class="text-lg font-bold text-white">Arrastra tu modelo 3D aquí</h3>
-                        <p class="text-sm text-gray-400">o haz clic para explorar (Formatos .GLB o .GLTF)</p>
+                        <p class="text-sm text-gray-400">o haz clic para explorar (.glb / .gltf)</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- GRID DE MODELOS -->
-        <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="gallery-grid">
-            <!-- Las tarjetas se generarán con JS aquí -->
-        </div>
+        <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="gallery-grid"></div>
     </main>
 
-    <!-- PANTALLA 2: VISOR AR -->
+    <!-- VISOR AR -->
     <div id="ar-container">
         <video id="video-feed" playsinline muted></video>
         <canvas id="three-canvas"></canvas>
         <div id="marker-highlight"></div>
 
-        <!-- UI Overlay del AR -->
         <div class="absolute top-0 left-0 w-full p-4 z-40 flex justify-between items-start pointer-events-none">
             <button onclick="stopAR()" class="pointer-events-auto bg-red-600/90 backdrop-blur text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95 transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 Salir
             </button>
-            
             <div class="bg-black/70 backdrop-blur px-4 py-2 rounded-lg text-xs font-mono text-green-400 border border-green-500/30 max-w-[150px]">
                 <div id="ar-status">Iniciando...</div>
             </div>
         </div>
         
-        <!-- Indicador de escaneo visual -->
-        <div class="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-black/80 to-transparent z-20 flex items-center justify-center pointer-events-none">
-            <div class="w-64 h-1 bg-white/20 rounded-full overflow-hidden">
-                <div class="h-full bg-white w-1/3 animate-ping"></div>
-            </div>
-        </div>
-
-        <!-- Toast de modelo detectado -->
+        <!-- Toast -->
         <div id="model-found-toast" class="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white text-black px-6 py-3 rounded-xl shadow-2xl z-50 text-center transition-all duration-300 opacity-0 translate-y-4 pointer-events-none">
-            <div class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Modelo Detectado</div>
+            <div class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Modelo Anclado</div>
             <div id="detected-model-name" class="text-lg font-bold">---</div>
         </div>
     </div>
 
-    <!-- JAVASCRIPT LOGIC -->
+    <!-- JAVASCRIPT -->
     <script>
-        // --- 1. CONFIGURACIÓN DE MODELOS ---
+        // --- 1. DATOS Y CONFIGURACIÓN ---
         let modelsData = [
-            { id: 'skull-001', name: 'Cráneo 3D', url: 'https://threejs.org/examples/models/gltf/Skull.glb', color: 0xffffff },
-            { id: 'damaged-helmet', name: 'Casco Dañado', url: 'https://threejs.org/examples/models/gltf/DamagedHelmet.glb', color: 0xff0000 },
-            { id: 'robot-001', name: 'Robot Expressive', url: 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb', color: 0x00ff00 }
+            { id: 'skull-001', name: 'Cráneo 3D', url: 'https://threejs.org/examples/models/gltf/Skull.glb' },
+            { id: 'damaged-helmet', name: 'Casco Dañado', url: 'https://threejs.org/examples/models/gltf/DamagedHelmet.glb' },
+            { id: 'robot-001', name: 'Robot', url: 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb' }
         ];
 
-        // --- 2. RENDERIZADO DE GALERÍA Y GENERACIÓN QR ---
+        // --- 2. GALERÍA ---
         const galleryGrid = document.getElementById('gallery-grid');
         const dropZone = document.getElementById('drop-zone-wrapper');
         const fileInput = document.getElementById('file-input');
 
         function renderGallery() {
-            galleryGrid.innerHTML = ''; // Limpiar
-            modelsData.forEach(model => {
-                addModelCard(model);
-            });
+            galleryGrid.innerHTML = '';
+            modelsData.forEach(model => addModelCard(model));
         }
 
         function addModelCard(model) {
             const qrContainerId = `qr-${model.id}`;
             const isCustom = model.isLocal || false;
-
             const cardHTML = `
                 <div class="bg-gray-900 rounded-xl overflow-hidden model-card flex flex-col h-full shadow-xl relative group">
-                    <div class="bg-gray-800 aspect-video flex items-center justify-center relative group overflow-hidden">
+                    <div class="bg-gray-800 aspect-video flex items-center justify-center relative overflow-hidden">
                         <div class="absolute inset-0 opacity-20 bg-gradient-to-tr from-gray-700 to-black"></div>
                         ${isCustom ? '<span class="absolute top-2 right-2 bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded z-20">PERSONALIZADO</span>' : ''}
                         <svg class="w-20 h-20 text-gray-600 group-hover:text-white transition-colors z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                        
-                        <!-- Botón directo a AR para modelo personalizado -->
-                        ${isCustom ? `<button onclick="startAR()" class="absolute inset-0 bg-black/60 flex items-center justify-center z-30 opacity-0 group-hover:opacity-100 transition duration-300 font-bold text-white tracking-wider">VER EN AR</button>` : ''}
                     </div>
                     <div class="p-6 flex flex-col flex-grow relative">
                         <h3 class="text-2xl font-bold mb-1 text-white truncate">${model.name}</h3>
                         <p class="text-xs text-gray-500 font-mono mb-6 bg-white/5 inline-block px-2 py-1 rounded w-max">ID: ${model.id}</p>
-                        
                         <div class="flex-grow flex items-center justify-center bg-white/5 rounded-lg border border-white/10 mb-4">
                             <div id="${qrContainerId}" class="qr-container"></div>
                         </div>
-                        
-                        <p class="text-center text-xs text-gray-400">
-                            ${isCustom ? 'Escanea para probar flujo QR (Nota: Requiere archivo en servidor real).' : 'Escanea para ver en AR.'}
-                        </p>
+                        <p class="text-center text-xs text-gray-400">Escanea para ver modelo anclado</p>
                     </div>
                 </div>
             `;
             galleryGrid.insertAdjacentHTML('beforeend', cardHTML);
-
-            // Generar QR
             new QRCode(document.getElementById(qrContainerId), {
-                text: `model=${model.id}`,
-                width: 160, 
-                height: 160,
-                colorDark : "#000000",
-                colorLight : "#ffffff",
+                text: `model=${model.id}`, width: 160, height: 160,
+                colorDark : "#000000", colorLight : "#ffffff",
                 correctLevel : QRCode.CorrectLevel.L
             });
         }
 
-        // --- 3. SISTEMA DE CARGA DE ARCHIVOS ---
+        // --- 3. CARGA DE ARCHIVOS ---
         function loadModelFile(file) {
             if (!file) return;
-            const validExtensions = ['glb', 'gltf'];
-            const fileExtension = file.name.split('.').pop().toLowerCase();
-            
-            if (!validExtensions.includes(fileExtension)) {
-                alert('Error: Por favor sube archivos .glb o .gltf');
-                return;
-            }
-
-            // Crear URL temporal local
-            const objectURL = URL.createObjectURL(file);
-            const newId = 'custom-' + Date.now();
-
-            const newModel = {
-                id: newId,
-                name: file.name,
-                url: objectURL,
-                color: 0xffffff,
-                isLocal: true // Marca para manejar advertencias
-            };
-
-            modelsData.unshift(newModel); // Añadir al principio
-            addModelCard(newModel); // Renderizar solo esta tarjeta para optimizar
-            
-            // Scroll suave hacia la nueva tarjeta
+            if (!['glb','gltf'].includes(file.name.split('.').pop().toLowerCase())) return alert('Solo .glb');
+            const url = URL.createObjectURL(file);
+            modelsData.unshift({ id: 'custom-'+Date.now(), name: file.name, url: url, isLocal: true });
+            addModelCard(modelsData[0]);
             galleryGrid.children[0].scrollIntoView({ behavior: 'smooth' });
         }
-
-        // Eventos Drag & Drop
-        fileInput.addEventListener('change', (e) => loadModelFile(e.target.files[0]));
-        
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('active');
-        });
-
+        fileInput.addEventListener('change', e => loadModelFile(e.target.files[0]));
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('active'); });
         dropZone.addEventListener('dragleave', () => dropZone.classList.remove('active'));
-
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('active');
-            if (e.dataTransfer.files.length > 0) {
-                loadModelFile(e.dataTransfer.files[0]);
-            }
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault(); dropZone.classList.remove('active');
+            if (e.dataTransfer.files.length) loadModelFile(e.dataTransfer.files[0]);
         });
-
-        // Render inicial
         renderGallery();
 
-        // --- 4. SISTEMA AR THREE.JS ---
-        let video, canvas, ctx, scene, camera, renderer, currentModel = null;
-        let animationId;
-        let isARRunning = false;
+        // --- 4. SISTEMA AR CORE (FILTRADO + ANCLAJE) ---
+        let video, scanCanvas, scanCtx, scene, camera, renderer, currentModel = null;
+        let animationId, isARRunning = false;
+        let targetPosition = new THREE.Vector3(); // Posición objetivo para el suavizado
 
         async function startAR() {
             document.getElementById('gallery-view').style.display = 'none';
             document.getElementById('ar-container').style.display = 'block';
             isARRunning = true;
-            updateStatus("Solicitando cámara...");
+            updateStatus("Iniciando cámara...");
 
-            video = document.getElementById('video-feed'); // Usar tag existente
-            
+            video = document.getElementById('video-feed');
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: 'environment',
-                        width: { ideal: 1920 }, 
-                        height: { ideal: 1080 }
-                    }
+                    video: { facingMode: 'environment' }
                 });
-                
                 video.srcObject = stream;
-                video.setAttribute("playsinline", true); 
+                video.setAttribute("playsinline", true);
                 video.muted = true;
-                
-                video.onloadedmetadata = function() {
+                video.onloadedmetadata = () => {
                     video.play();
-                    updateStatus("Buscando código QR...");
+                    scanCanvas = document.createElement('canvas');
+                    scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+                    updateStatus("Buscando QR...");
                     requestAnimationFrame(tick);
                 };
-                
             } catch (err) {
-                console.error("Error cámara:", err);
-                let mensajeError = "No se pudo acceder a la cámara.";
-                if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-                    mensajeError += "\n\n⚠️ REQUIERE HTTPS: Debes usar Live Server o subir a GitHub Pages.";
-                }
-                alert(mensajeError);
+                console.error(err);
+                alert("Error de cámara. Requiere HTTPS.");
                 stopAR();
-                return;
             }
-
             initThreeJS();
         }
 
         function stopAR() {
             isARRunning = false;
-            if (video && video.srcObject) {
-                video.srcObject.getTracks().forEach(track => track.stop());
-            }
+            if (video && video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
             document.getElementById('ar-container').style.display = 'none';
             document.getElementById('gallery-view').style.display = 'block';
             cancelAnimationFrame(animationId);
-            
-            if(scene) {
-                while(scene.children.length > 0){ scene.remove(scene.children[0]); }
-            }
+            if(scene) while(scene.children.length > 0) scene.remove(scene.children[0]);
             currentModel = null;
         }
 
         function initThreeJS() {
             const container = document.getElementById('ar-container');
-            const w = container.clientWidth;
-            const h = container.clientHeight;
-
             scene = new THREE.Scene();
-            
-            camera = new THREE.PerspectiveCamera(70, w / h, 0.01, 1000);
+            camera = new THREE.PerspectiveCamera(70, container.clientWidth/container.clientHeight, 0.01, 1000);
             camera.position.z = 5;
-
             renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-            renderer.setSize(w, h);
+            renderer.setSize(container.clientWidth, container.clientHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             document.getElementById('three-canvas').appendChild(renderer.domElement);
-
             const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
             scene.add(ambientLight);
             const dirLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -322,132 +227,144 @@
             scene.add(dirLight);
         }
 
-        // --- 5. LÓGICA DE DETECCIÓN Y TRACKING ---
+        // --- 5. LÓGICA DE DETECCIÓN OPTIMIZADA (THRESHOLD) ---
         function tick() {
             if (!isARRunning) return;
             animationId = requestAnimationFrame(tick);
 
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                if (!canvas) {
-                    canvas = document.createElement('canvas');
-                    ctx = canvas.getContext('2d', { willReadFrequently: true });
-                }
+                // 1. Dibujar frame en canvas pequeño
+                const scanSize = Math.min(video.videoWidth, 800);
+                scanCanvas.width = scanSize;
+                scanCanvas.height = scanSize * (video.videoHeight / video.videoWidth);
+                scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
                 
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
+                // 2. LEER DATOS
+                let imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
                 
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                
+                // 3. APLICAR FILTRO BINARIO (UMBRAL) - CLAVE PARA ESCANEAR EN PANTALLAS
+                // Convierte todo a Blanco o Negro puro, eliminando reflejos grises
+                threshold(imageData);
+
+                // 4. ANALIZAR
                 const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                    inversionAttempts: "dontInvert",
+                    inversionAttempts: "dontInvert", // No invertimos, el umbral ya lo maneja
                 });
 
                 const statusDiv = document.getElementById('ar-status');
-                const markerHighlight = document.getElementById('marker-highlight');
+                const marker = document.getElementById('marker-highlight');
 
                 if (code) {
-                    statusDiv.textContent = "¡QR Detectado!";
+                    statusDiv.textContent = "¡Anclado!";
                     statusDiv.classList.replace('text-green-400', 'text-blue-400');
-                    drawBoundingBox(code.location);
                     
+                    // Dibujar recuadro
+                    drawMarker(code.location);
+
+                    // PROCESAR MODELO
                     const rawData = code.data.trim();
-                    let modelId = null;
+                    let modelId = rawData.startsWith('model=') ? rawData.split('=')[1] : rawData;
                     
-                    if (rawData.startsWith('model=')) {
-                        modelId = rawData.split('=')[1];
-                    } else {
-                        const found = modelsData.find(m => m.id === rawData);
-                        if(found) modelId = rawData;
-                    }
-
-                    if (modelId) {
+                    if (modelId && modelsData.find(m => m.id === modelId)) {
                         loadOrPlaceModel(modelId);
-                        const modelName = modelsData.find(m => m.id === modelId)?.name;
-                        if (modelName) showModelToast(modelName);
-                    }
+                        
+                        // --- CÁLCULO DE ANCLAJE 3D (CORE) ---
+                        // Obtener centro del QR
+                        const center = getQRCenter(code.location);
+                        
+                        // Mapear coordenadas de pantalla (scanCanvas) a Three.js
+                        // Nota: scanCanvas.width vs window.innerWidth es la escala
+                        const x = (center.x / scanCanvas.width) * 2 - 1; // Normalizar X (-1 a 1)
+                        const y = -(center.y / scanCanvas.height) * 2 + 1; // Normalizar Y (-1 a 1)
+                        
+                        // Crear vector para unproyectar
+                        const vec = new THREE.Vector3(x, y, 0.5);
+                        vec.unproject(camera);
+                        
+                        // Crear rayo desde la cámara hacia ese punto
+                        const dir = vec.sub(camera.position).normalize();
+                        
+                        // Calcular intersección con un plano virtual a una distancia Z específica (ej: Z = -2.5)
+                        // Distancia = (Z_objetivo - Z_camara) / Z_direccion
+                        const distance = -2.5 - camera.position.z;
+                        const targetZ = distance / dir.z;
+                        
+                        const pos = camera.position.clone().add(dir.multiplyScalar(targetZ));
+                        
+                        // Aplicar al modelo con suavizado (Lerp)
+                        if (currentModel) {
+                            currentModel.visible = true;
+                            // Interpolación lineal (0.3 = suavidad, más alto = más rápido/rígido)
+                            targetPosition.copy(pos);
+                            currentModel.position.lerp(targetPosition, 0.3);
+                            currentModel.rotation.y += 0.02; // Rotación suave
+                        }
 
+                        showModelToast(modelsData.find(m => m.id === modelId).name);
+                    }
                 } else {
-                    statusDiv.textContent = "Buscando código QR...";
+                    statusDiv.textContent = "Buscando QR...";
                     statusDiv.classList.replace('text-blue-400', 'text-green-400');
-                    markerHighlight.style.display = 'none';
+                    marker.style.display = 'none';
+                    if (currentModel) currentModel.visible = false; // Ocultar si pierde el QR
                 }
 
                 renderer.render(scene, camera);
             }
         }
 
-        function drawBoundingBox(location) {
-            const marker = document.getElementById('marker-highlight');
-            marker.style.display = 'block';
-            
-            const topLeft = location.topLeftCorner;
-            const topRight = location.topRightCorner;
-            
-            const width = Math.sqrt(Math.pow(topRight.x - topLeft.x, 2) + Math.pow(topRight.y - topLeft.y, 2));
-            
-            const x = (topLeft.x + bottomRightCornerX(location)) / 2; 
-            const y = (topLeft.y + bottomRightCornerY(location)) / 2; 
-            
-            const screenX = (x / video.videoWidth) * window.innerWidth;
-            const screenY = (y / video.videoHeight) * window.innerHeight;
-            const screenW = (width / video.videoWidth) * window.innerWidth;
-
-            marker.style.left = `${screenX}px`;
-            marker.style.top = `${screenY}px`;
-            marker.style.width = `${screenW}px`;
-            marker.style.height = `${screenW}px`;
+        // Función para convertir imagen a Blanco/Negro puro (Elimina reflejos)
+        function threshold(imageData) {
+            const d = imageData.data;
+            for (let i = 0; i < d.length; i += 4) {
+                // Promedio de luminosidad
+                const r = d[i], g = d[i+1], b = d[i+2];
+                const v = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                // Si es > 120 (gris claro), blanco. Si no, negro.
+                const bin = v >= 120 ? 255 : 0;
+                d[i] = d[i+1] = d[i+2] = bin;
+            }
         }
 
-        function bottomRightCornerX(loc) { return (loc.topRightCorner.x + loc.bottomRightCorner.x)/2; }
-        function bottomRightCornerY(loc) { return (loc.topRightCorner.y + loc.bottomRightCorner.y)/2; }
+        function getQRCenter(loc) {
+            return {
+                x: (loc.topLeftCorner.x + loc.bottomRightCorner.x) / 2,
+                y: (loc.topLeftCorner.y + loc.bottomRightCorner.y) / 2
+            };
+        }
 
-        // --- 6. GESTIÓN DEL MODELO 3D ---
+        function drawMarker(loc) {
+            const marker = document.getElementById('marker-highlight');
+            marker.style.display = 'block';
+            const center = getQRCenter(loc);
+            const width = Math.hypot(loc.topRightCorner.x - loc.topLeftCorner.x, loc.topRightCorner.y - loc.topLeftCorner.y);
+            
+            marker.style.left = `${(center.x / scanCanvas.width) * window.innerWidth}px`;
+            marker.style.top = `${(center.y / scanCanvas.height) * window.innerHeight}px`;
+            marker.style.width = `${(width / scanCanvas.width) * window.innerWidth}px`;
+            marker.style.height = `${(width / scanCanvas.width) * window.innerWidth}px`;
+        }
+
         function loadOrPlaceModel(modelId) {
-            if (currentModel && currentModel.userData.id === modelId) {
-                const time = Date.now() * 0.001;
-                currentModel.rotation.y = time + 1;
-                currentModel.position.set(0, 0, -2.5);
-                return;
-            }
-
+            if (currentModel && currentModel.userData.id === modelId) return;
             const modelData = modelsData.find(m => m.id === modelId);
             if (!modelData) return;
-
             if (currentModel) scene.remove(currentModel);
-
             const loader = new THREE.GLTFLoader();
-            
             loader.load(modelData.url, (gltf) => {
                 currentModel = gltf.scene;
                 currentModel.userData.id = modelId;
-                
-                currentModel.scale.set(0.8, 0.8, 0.8); 
-                currentModel.position.set(0, 0, -2.5); 
-                
+                currentModel.scale.set(0.5, 0.5, 0.5); // Tamaño base
                 scene.add(currentModel);
-                console.log("Modelo cargado:", modelData.name);
-
-            }, undefined, (error) => {
-                console.error('Error cargando modelo:', error);
-                updateStatus("Error: URL inválida");
             });
         }
 
-        function updateStatus(msg) {
-            document.getElementById('ar-status').textContent = msg;
-        }
-
+        function updateStatus(msg) { document.getElementById('ar-status').textContent = msg; }
         function showModelToast(name) {
             const toast = document.getElementById('model-found-toast');
-            const nameEl = document.getElementById('detected-model-name');
-            nameEl.textContent = name;
+            document.getElementById('detected-model-name').textContent = name;
             toast.classList.remove('opacity-0', 'translate-y-4');
-            
-            setTimeout(() => {
-                toast.classList.add('opacity-0', 'translate-y-4');
-            }, 3000);
+            setTimeout(() => toast.classList.add('opacity-0', 'translate-y-4'), 3000);
         }
 
         window.addEventListener('resize', () => {
