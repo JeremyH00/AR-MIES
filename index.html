@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MIES-AR • Anclaje Preciso</title>
+    <title>MIES-AR • Detección Única y Fija</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -32,7 +32,7 @@
         #video-feed { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
         #three-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         
-        /* Marcador de detección */
+        /* Marcador */
         #marker-highlight {
             position: absolute; border: 2px dashed #00ff00; box-shadow: 0 0 10px #00ff00; display: none; z-index: 30;
             transform: translate(-50%, -50%); pointer-events: none;
@@ -52,7 +52,7 @@
         <header class="max-w-6xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4 border-b border-white/10 pb-6">
             <div>
                 <h1 class="text-3xl font-bold tracking-tighter">MIES-AR</h1>
-                <p class="text-gray-500">Anclaje Real: El modelo se pegará al código QR.</p>
+                <p class="text-gray-500">Modo Bloqueo: Detecta, Coloca y Detiene el Escaneo.</p>
             </div>
             <button onclick="startAR()" class="bg-white text-black font-bold px-8 py-3 rounded-full flex items-center gap-2 hover:bg-gray-200 transition shadow-lg active:scale-95">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -97,14 +97,14 @@
         
         <!-- Toast -->
         <div id="model-found-toast" class="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white text-black px-6 py-3 rounded-xl shadow-2xl z-50 text-center transition-all duration-300 opacity-0 translate-y-4 pointer-events-none">
-            <div class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Modelo Anclado</div>
+            <div class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Modelo Fijo</div>
             <div id="detected-model-name" class="text-lg font-bold">---</div>
         </div>
     </div>
 
     <!-- JAVASCRIPT -->
     <script>
-        // --- 1. DATOS Y CONFIGURACIÓN ---
+        // --- 1. DATOS ---
         let modelsData = [
             { id: 'skull-001', name: 'Cráneo 3D', url: 'https://threejs.org/examples/models/gltf/Skull.glb' },
             { id: 'damaged-helmet', name: 'Casco Dañado', url: 'https://threejs.org/examples/models/gltf/DamagedHelmet.glb' },
@@ -137,7 +137,7 @@
                         <div class="flex-grow flex items-center justify-center bg-white/5 rounded-lg border border-white/10 mb-4">
                             <div id="${qrContainerId}" class="qr-container"></div>
                         </div>
-                        <p class="text-center text-xs text-gray-400">Escanea para ver modelo anclado</p>
+                        <p class="text-center text-xs text-gray-400">Escanea para fijar modelo en AR</p>
                     </div>
                 </div>
             `;
@@ -167,22 +167,20 @@
         });
         renderGallery();
 
-        // --- 4. SISTEMA AR CORE (FILTRADO + ANCLAJE) ---
+        // --- 4. SISTEMA AR (DETECCIÓN ÚNICA) ---
         let video, scanCanvas, scanCtx, scene, camera, renderer, currentModel = null;
-        let animationId, isARRunning = false;
-        let targetPosition = new THREE.Vector3(); // Posición objetivo para el suavizado
+        let animationId, isARRunning = false, isScanning = true; // isScanning es la clave
 
         async function startAR() {
             document.getElementById('gallery-view').style.display = 'none';
             document.getElementById('ar-container').style.display = 'block';
             isARRunning = true;
-            updateStatus("Iniciando cámara...");
+            isScanning = true; // Reiniciar escaneo al entrar
+            updateStatus("Buscando QR...");
 
             video = document.getElementById('video-feed');
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                 video.srcObject = stream;
                 video.setAttribute("playsinline", true);
                 video.muted = true;
@@ -190,11 +188,9 @@
                     video.play();
                     scanCanvas = document.createElement('canvas');
                     scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
-                    updateStatus("Buscando QR...");
                     requestAnimationFrame(tick);
                 };
             } catch (err) {
-                console.error(err);
                 alert("Error de cámara. Requiere HTTPS.");
                 stopAR();
             }
@@ -203,6 +199,7 @@
 
         function stopAR() {
             isARRunning = false;
+            isScanning = true;
             if (video && video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
             document.getElementById('ar-container').style.display = 'none';
             document.getElementById('gallery-view').style.display = 'block';
@@ -227,100 +224,92 @@
             scene.add(dirLight);
         }
 
-        // --- 5. LÓGICA DE DETECCIÓN OPTIMIZADA (THRESHOLD) ---
+        // --- 5. LÓGICA DE TICK (LOOP PRINCIPAL) ---
         function tick() {
             if (!isARRunning) return;
             animationId = requestAnimationFrame(tick);
 
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                // 1. Dibujar frame en canvas pequeño
-                const scanSize = Math.min(video.videoWidth, 800);
-                scanCanvas.width = scanSize;
-                scanCanvas.height = scanSize * (video.videoHeight / video.videoWidth);
-                scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
-                
-                // 2. LEER DATOS
-                let imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
-                
-                // 3. APLICAR FILTRO BINARIO (UMBRAL) - CLAVE PARA ESCANEAR EN PANTALLAS
-                // Convierte todo a Blanco o Negro puro, eliminando reflejos grises
-                threshold(imageData);
-
-                // 4. ANALIZAR
-                const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                    inversionAttempts: "dontInvert", // No invertimos, el umbral ya lo maneja
-                });
-
-                const statusDiv = document.getElementById('ar-status');
-                const marker = document.getElementById('marker-highlight');
-
-                if (code) {
-                    statusDiv.textContent = "¡Anclado!";
-                    statusDiv.classList.replace('text-green-400', 'text-blue-400');
+                // Solo escanear si estamos en modo búsqueda
+                if (isScanning) {
+                    const scanSize = Math.min(video.videoWidth, 800);
+                    scanCanvas.width = scanSize;
+                    scanCanvas.height = scanSize * (video.videoHeight / video.videoWidth);
+                    scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
                     
-                    // Dibujar recuadro
-                    drawMarker(code.location);
+                    let imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+                    threshold(imageData); // Aplicar filtro binario
 
-                    // PROCESAR MODELO
-                    const rawData = code.data.trim();
-                    let modelId = rawData.startsWith('model=') ? rawData.split('=')[1] : rawData;
-                    
-                    if (modelId && modelsData.find(m => m.id === modelId)) {
-                        loadOrPlaceModel(modelId);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                        inversionAttempts: "dontInvert",
+                    });
+
+                    const marker = document.getElementById('marker-highlight');
+
+                    if (code) {
+                        // --- DETECTADO ---
+                        updateStatus("¡QR Detectado! Fijando modelo...");
                         
-                        // --- CÁLCULO DE ANCLAJE 3D (CORE) ---
-                        // Obtener centro del QR
-                        const center = getQRCenter(code.location);
+                        drawMarker(code.location);
                         
-                        // Mapear coordenadas de pantalla (scanCanvas) a Three.js
-                        // Nota: scanCanvas.width vs window.innerWidth es la escala
-                        const x = (center.x / scanCanvas.width) * 2 - 1; // Normalizar X (-1 a 1)
-                        const y = -(center.y / scanCanvas.height) * 2 + 1; // Normalizar Y (-1 a 1)
+                        const rawData = code.data.trim();
+                        let modelId = rawData.startsWith('model=') ? rawData.split('=')[1] : rawData;
                         
-                        // Crear vector para unproyectar
-                        const vec = new THREE.Vector3(x, y, 0.5);
-                        vec.unproject(camera);
-                        
-                        // Crear rayo desde la cámara hacia ese punto
-                        const dir = vec.sub(camera.position).normalize();
-                        
-                        // Calcular intersección con un plano virtual a una distancia Z específica (ej: Z = -2.5)
-                        // Distancia = (Z_objetivo - Z_camara) / Z_direccion
-                        const distance = -2.5 - camera.position.z;
-                        const targetZ = distance / dir.z;
-                        
-                        const pos = camera.position.clone().add(dir.multiplyScalar(targetZ));
-                        
-                        // Aplicar al modelo con suavizado (Lerp)
-                        if (currentModel) {
-                            currentModel.visible = true;
-                            // Interpolación lineal (0.3 = suavidad, más alto = más rápido/rígido)
-                            targetPosition.copy(pos);
-                            currentModel.position.lerp(targetPosition, 0.3);
-                            currentModel.rotation.y += 0.02; // Rotación suave
+                        if (modelId && modelsData.find(m => m.id === modelId)) {
+                            loadAndFixModel(modelId, code.location);
+                            showModelToast(modelsData.find(m => m.id === modelId).name);
+                            
+                            // DETENER BÚSQUEDA AQUÍ
+                            isScanning = false; 
+                            marker.style.display = 'none'; // Ocultar marca verde
+                            updateStatus("Modelo Fijo. Móvil libre.");
                         }
-
-                        showModelToast(modelsData.find(m => m.id === modelId).name);
+                    } else {
+                        updateStatus("Buscando QR...");
+                        marker.style.display = 'none';
                     }
-                } else {
-                    statusDiv.textContent = "Buscando QR...";
-                    statusDiv.classList.replace('text-blue-400', 'text-green-400');
-                    marker.style.display = 'none';
-                    if (currentModel) currentModel.visible = false; // Ocultar si pierde el QR
                 }
-
                 renderer.render(scene, camera);
             }
         }
 
-        // Función para convertir imagen a Blanco/Negro puro (Elimina reflejos)
+        // --- 6. ANCLAJE FIJO (SIN SEGUIMIENTO) ---
+        function loadAndFixModel(modelId, location) {
+            // Calcular posición 3D basada en la cámara EN ESE MOMENTO
+            const center = getQRCenter(location);
+            const x = (center.x / scanCanvas.width) * 2 - 1;
+            const y = -(center.y / scanCanvas.height) * 2 + 1;
+            
+            const vec = new THREE.Vector3(x, y, 0.5);
+            vec.unproject(camera);
+            const dir = vec.sub(camera.position).normalize();
+            const distance = -2.5 - camera.position.z;
+            const pos = camera.position.clone().add(dir.multiplyScalar(distance));
+
+            // Cargar modelo si no está cargado
+            const modelData = modelsData.find(m => m.id === modelId);
+            if (!modelData) return;
+            
+            if (!currentModel) {
+                const loader = new THREE.GLTFLoader();
+                loader.load(modelData.url, (gltf) => {
+                    currentModel = gltf.scene;
+                    currentModel.userData.id = modelId;
+                    currentModel.scale.set(0.5, 0.5, 0.5);
+                    currentModel.position.copy(pos); // FIJAR POSICIÓN
+                    scene.add(currentModel);
+                });
+            } else {
+                // Si ya existe, solo moverlo
+                currentModel.position.copy(pos);
+                currentModel.visible = true;
+            }
+        }
+
         function threshold(imageData) {
             const d = imageData.data;
             for (let i = 0; i < d.length; i += 4) {
-                // Promedio de luminosidad
-                const r = d[i], g = d[i+1], b = d[i+2];
-                const v = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                // Si es > 120 (gris claro), blanco. Si no, negro.
+                const v = 0.2126 * d[i] + 0.7152 * d[i+1] + 0.0722 * d[i+2];
                 const bin = v >= 120 ? 255 : 0;
                 d[i] = d[i+1] = d[i+2] = bin;
             }
@@ -343,20 +332,6 @@
             marker.style.top = `${(center.y / scanCanvas.height) * window.innerHeight}px`;
             marker.style.width = `${(width / scanCanvas.width) * window.innerWidth}px`;
             marker.style.height = `${(width / scanCanvas.width) * window.innerWidth}px`;
-        }
-
-        function loadOrPlaceModel(modelId) {
-            if (currentModel && currentModel.userData.id === modelId) return;
-            const modelData = modelsData.find(m => m.id === modelId);
-            if (!modelData) return;
-            if (currentModel) scene.remove(currentModel);
-            const loader = new THREE.GLTFLoader();
-            loader.load(modelData.url, (gltf) => {
-                currentModel = gltf.scene;
-                currentModel.userData.id = modelId;
-                currentModel.scale.set(0.5, 0.5, 0.5); // Tamaño base
-                scene.add(currentModel);
-            });
         }
 
         function updateStatus(msg) { document.getElementById('ar-status').textContent = msg; }
