@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MIES-AR • Visibilidad Garantizada</title>
+    <title>MIES-AR • Tracking Fijo al QR</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -13,26 +13,21 @@
 
     <script>
         tailwind.config = {
-            theme: {
-                extend: {
-                    colors: { black: '#000', white: '#fff', gray: { 800: '#1f1f1f', 900: '#111' } }
-                }
-            }
+            theme: { extend: { colors: { black: '#000', white: '#fff', gray: { 800: '#1f1f1f', 900: '#111' } } } }
         }
     </script>
 
     <style>
         body { background-color: #000; color: #fff; font-family: 'Inter', sans-serif; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
         
-        /* FIX #1: three-canvas ahora es un DIV contenedor, no un canvas */
         #ar-container { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999; background: #000; }
         #video-feed { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
         #three-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         #three-canvas canvas { width: 100% !important; height: 100% !important; display: block; }
         
         #marker-highlight {
-            position: absolute; border: 2px dashed #00ff00; box-shadow: 0 0 10px #00ff00; display: none; z-index: 30;
-            transform: translate(-50%, -50%); pointer-events: none;
+            position: absolute; border: 2px dashed #00ff00; box-shadow: 0 0 12px rgba(0,255,0,0.5); display: none; z-index: 30;
+            transform: translate(-50%, -50%); pointer-events: none; border-radius: 4px;
         }
 
         .drop-zone { border: 2px dashed #333; transition: all 0.3s ease; background: rgba(255,255,255,0.02); }
@@ -40,6 +35,15 @@
         .model-card { transition: all 0.3s ease; border: 1px solid #333; }
         .model-card:hover { transform: translateY(-5px); border-color: #fff; }
         .qr-container { background: white; padding: 10px; border-radius: 8px; display: inline-block; }
+
+        /* Indicador de tracking */
+        #tracking-indicator {
+            position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+            z-index: 50; display: none;
+        }
+        .track-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin: 0 3px; transition: background 0.2s; }
+        .track-dot.on { background: #00ff00; box-shadow: 0 0 8px #00ff00; }
+        .track-dot.off { background: #ff3333; box-shadow: 0 0 8px #ff3333; }
     </style>
 </head>
 <body>
@@ -49,7 +53,7 @@
         <header class="max-w-6xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4 border-b border-white/10 pb-6">
             <div>
                 <h1 class="text-3xl font-bold tracking-tighter">MIES-AR</h1>
-                <p class="text-gray-500">Visibilidad Garantizada + Respaldo Visual.</p>
+                <p class="text-gray-500">Modelo fijo al QR — muévelo y el modelo sigue.</p>
             </div>
             <button onclick="startAR()" class="bg-white text-black font-bold px-8 py-3 rounded-full flex items-center gap-2 hover:bg-gray-200 transition shadow-lg active:scale-95">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -66,7 +70,7 @@
                     </div>
                     <div>
                         <h3 class="text-lg font-bold text-white">Arrastra tu modelo 3D aquí</h3>
-                        <p class="text-sm text-gray-400">Si falla, aparecerá un cubo verde de respaldo.</p>
+                        <p class="text-sm text-gray-400">Si falla la descarga, aparecerá un cubo verde de respaldo.</p>
                     </div>
                 </div>
             </div>
@@ -78,7 +82,6 @@
     <!-- VISOR AR -->
     <div id="ar-container">
         <video id="video-feed" playsinline muted></video>
-        <!-- FIX #1: Cambiado de <canvas> a <div> para poder contener el canvas de Three.js -->
         <div id="three-canvas"></div>
         <div id="marker-highlight"></div>
 
@@ -87,7 +90,7 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 Salir
             </button>
-            <div class="bg-black/70 backdrop-blur px-4 py-2 rounded-lg text-xs font-mono text-green-400 border border-green-500/30 max-w-[200px]">
+            <div class="bg-black/80 backdrop-blur px-4 py-2 rounded-lg text-xs font-mono text-green-400 border border-green-500/30 max-w-[220px]">
                 <div id="ar-status">Iniciando...</div>
             </div>
         </div>
@@ -96,17 +99,29 @@
             <div class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Modelo Cargado</div>
             <div id="detected-model-name" class="text-lg font-bold">---</div>
         </div>
+
+        <!-- Indicador de tracking en vivo -->
+        <div id="tracking-indicator">
+            <div class="bg-black/80 backdrop-blur border border-white/20 rounded-full px-5 py-2.5 flex items-center gap-3">
+                <span class="track-dot" id="dot-pos"></span>
+                <span class="text-[10px] font-mono text-gray-300 tracking-wide">POS</span>
+                <span class="track-dot" id="dot-scl"></span>
+                <span class="text-[10px] font-mono text-gray-300 tracking-wide">SCL</span>
+                <span class="track-dot" id="dot-rot"></span>
+                <span class="text-[10px] font-mono text-gray-300 tracking-wide">ROT</span>
+            </div>
+        </div>
     </div>
 
     <script>
         // --- 1. DATOS ---
         let modelsData = [
-            { id: 'avocado', name: 'Aguacate (Color)', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb' },
+            { id: 'avocado', name: 'Aguacate', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb' },
             { id: 'cesium', name: 'Cesium Man', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/CesiumMan/glTF-Binary/CesiumMan.glb' },
-            { id: 'box', name: 'Cubo (Fallback)', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF-Binary/Box.glb' }
+            { id: 'box', name: 'Cubo', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF-Binary/Box.glb' }
         ];
 
-        // --- 2. GALERÍA ---
+        // --- 2. GALERÍA (sin cambios) ---
         const galleryGrid = document.getElementById('gallery-grid');
         const dropZone = document.getElementById('drop-zone-wrapper');
         const fileInput = document.getElementById('file-input');
@@ -117,9 +132,9 @@
         }
 
         function addModelCard(model) {
-            const qrContainerId = `qr-${model.id}`;
+            const qrId = `qr-${model.id}`;
             const isCustom = model.isLocal || false;
-            const cardHTML = `
+            galleryGrid.insertAdjacentHTML('beforeend', `
                 <div class="bg-gray-900 rounded-xl overflow-hidden model-card flex flex-col h-full shadow-xl relative group">
                     <div class="bg-gray-800 aspect-video flex items-center justify-center relative overflow-hidden">
                         <div class="absolute inset-0 opacity-20 bg-gradient-to-tr from-gray-700 to-black"></div>
@@ -130,24 +145,22 @@
                         <h3 class="text-2xl font-bold mb-1 text-white truncate">${model.name}</h3>
                         <p class="text-xs text-gray-500 font-mono mb-6 bg-white/5 inline-block px-2 py-1 rounded w-max">ID: ${model.id}</p>
                         <div class="flex-grow flex items-center justify-center bg-white/5 rounded-lg border border-white/10 mb-4">
-                            <div id="${qrContainerId}" class="qr-container"></div>
+                            <div id="${qrId}" class="qr-container"></div>
                         </div>
-                        <p class="text-center text-xs text-gray-400">Escanea para fijar modelo</p>
+                        <p class="text-center text-xs text-gray-400">Escanea para fijar modelo al QR</p>
                     </div>
                 </div>
-            `;
-            galleryGrid.insertAdjacentHTML('beforeend', cardHTML);
-            new QRCode(document.getElementById(qrContainerId), {
+            `);
+            new QRCode(document.getElementById(qrId), {
                 text: `model=${model.id}`, width: 160, height: 160,
                 colorDark: "#000000", colorLight: "#ffffff",
                 correctLevel: QRCode.CorrectLevel.L
             });
         }
 
-        // --- 3. CARGA DE ARCHIVOS ---
         function loadModelFile(file) {
             if (!file) return;
-            if (!['glb', 'gltf'].includes(file.name.split('.').pop().toLowerCase())) return alert('Solo archivos .glb o .gltf');
+            if (!['glb', 'gltf'].includes(file.name.split('.').pop().toLowerCase())) return alert('Solo .glb o .gltf');
             const url = URL.createObjectURL(file);
             modelsData.unshift({ id: 'custom-' + Date.now(), name: file.name, url: url, isLocal: true });
             addModelCard(modelsData[0]);
@@ -157,23 +170,38 @@
         dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('active'); });
         dropZone.addEventListener('dragleave', () => dropZone.classList.remove('active'));
         dropZone.addEventListener('drop', e => {
-            e.preventDefault();
-            dropZone.classList.remove('active');
+            e.preventDefault(); dropZone.classList.remove('active');
             if (e.dataTransfer.files.length) loadModelFile(e.dataTransfer.files[0]);
         });
         renderGallery();
 
-        // --- 4. SISTEMA AR ---
+        // --- 3. SISTEMA AR CON TRACKING CONTINUO ---
         let video, scanCanvas, scanCtx, scene, camera, renderer, currentModel = null;
-        let animationId, isARRunning = false, isScanning = true;
-        let modelRotationSpeed = 0.01; // Rotación suave para confirmar visibilidad
+        let animationId, isARRunning = false;
+        let baseModelScale = 1.0;
+
+        // Estado del tracking
+        let activeModelId = null;      // ID del modelo actualmente cargado
+        let qrLostFrames = 0;          // Cuántos frames sin ver el QR
+        const GRACE_FRAMES = 30;       // ~0.5s a 60fps de gracia antes de ocultar
+        let isLoading = false;         // Evitar cargar el mismo modelo varias veces
+
+        // Suavizado de posición (evita que el modelo tiemble)
+        let smoothPos = { x: 0, y: 0, z: 0 };
+        let smoothScale = 1;
+        let smoothRotZ = 0;
+        let smoothTiltX = 0;
+        let smoothTiltY = 0;
+        const SMOOTH = 0.25; // 0 = sin suavizado, 1 = muy suave
 
         async function startAR() {
             document.getElementById('gallery-view').style.display = 'none';
             document.getElementById('ar-container').style.display = 'block';
             isARRunning = true;
-            isScanning = true;
+            activeModelId = null;
             currentModel = null;
+            isLoading = false;
+            qrLostFrames = 0;
             updateStatus("Iniciando cámara...");
 
             video = document.getElementById('video-feed');
@@ -193,401 +221,410 @@
                 };
             } catch (err) {
                 console.error(err);
-                alert("Error al acceder a la cámara. Asegúrate de usar HTTPS y permitir el acceso.");
+                alert("Error de cámara. Usa HTTPS y permite acceso.");
                 stopAR();
             }
-
             initThreeJS();
         }
 
         function stopAR() {
             isARRunning = false;
-            isScanning = true;
             if (video && video.srcObject) {
                 video.srcObject.getTracks().forEach(t => t.stop());
                 video.srcObject = null;
             }
             document.getElementById('ar-container').style.display = 'none';
             document.getElementById('gallery-view').style.display = 'block';
+            document.getElementById('tracking-indicator').style.display = 'none';
             cancelAnimationFrame(animationId);
+            cleanupScene();
+            activeModelId = null;
+            currentModel = null;
+        }
 
-            // Limpiar escena
+        function cleanupScene() {
             if (scene) {
                 scene.traverse((child) => {
                     if (child.geometry) child.geometry.dispose();
                     if (child.material) {
-                        if (Array.isArray(child.material)) {
-                            child.material.forEach(m => m.dispose());
-                        } else {
-                            child.material.dispose();
-                        }
+                        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                        else child.material.dispose();
                     }
                 });
                 while (scene.children.length > 0) scene.remove(scene.children[0]);
             }
-
-            // Limpiar renderer
             if (renderer) {
-                const container = document.getElementById('three-canvas');
-                if (container.contains(renderer.domElement)) {
-                    container.removeChild(renderer.domElement);
-                }
+                const c = document.getElementById('three-canvas');
+                if (c.contains(renderer.domElement)) c.removeChild(renderer.domElement);
                 renderer.dispose();
                 renderer = null;
             }
-            currentModel = null;
         }
 
         function initThreeJS() {
-            const container = document.getElementById('ar-container');
-            const w = container.clientWidth;
-            const h = container.clientHeight;
-
+            const w = window.innerWidth;
+            const h = window.innerHeight;
             scene = new THREE.Scene();
-
-            // FIX #2: Cámara en z=0, mirando hacia -z
-            camera = new THREE.PerspectiveCamera(70, w / h, 0.01, 100);
+            camera = new THREE.PlaneCamera ? new THREE.PerspectiveCamera(70, w / h, 0.01, 100) : new THREE.PerspectiveCamera(70, w / h, 0.01, 100);
             camera.position.set(0, 0, 0);
             camera.lookAt(0, 0, -1);
 
             renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
             renderer.setSize(w, h);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.setClearColor(0x000000, 0); // Fondo completamente transparente
+            renderer.setClearColor(0x000000, 0);
             renderer.outputEncoding = THREE.sRGBEncoding;
 
-            // FIX #1: Como three-canvas ahora es un <div>, appendChild funciona correctamente
-            const threeContainer = document.getElementById('three-canvas');
-            threeContainer.innerHTML = ''; // Limpiar por si queda algo
-            threeContainer.appendChild(renderer.domElement);
+            document.getElementById('three-canvas').innerHTML = '';
+            document.getElementById('three-canvas').appendChild(renderer.domElement);
 
-            // Luces potentes para garantizar visibilidad
-            const ambientLight = new THREE.AmbientLight(0xffffff, 3.0);
-            scene.add(ambientLight);
+            // Luces fuertes
+            scene.add(new THREE.AmbientLight(0xffffff, 3.0));
+            const d1 = new THREE.DirectionalLight(0xffffff, 2.0);
+            d1.position.set(3, 5, 3);
+            scene.add(d1);
+            const d2 = new THREE.DirectionalLight(0xffffff, 1.0);
+            d2.position.set(-3, -2, -3);
+            scene.add(d2);
 
-            const dirLight1 = new THREE.DirectionalLight(0xffffff, 2.0);
-            dirLight1.position.set(3, 5, 3);
-            scene.add(dirLight1);
-
-            const dirLight2 = new THREE.DirectionalLight(0xffffff, 1.0);
-            dirLight2.position.set(-3, -2, -3);
-            scene.add(dirLight2);
-
-            // FIX #3: Environment map para que los materiales PBR sean visibles
-            generateSimpleEnvironment();
+            // Environment map para materiales PBR
+            generateEnvironment();
         }
 
-        // FIX #3: Genera un environment map básico con gradientes
-        // Sin esto, los MeshStandardMaterial se ven negros
-        function generateSimpleEnvironment() {
-            const pmremGenerator = new THREE.PMREMGenerator(renderer);
-            pmremGenerator.compileEquirectangularShader();
-
-            // Crear una escena de ambiente simple
+        function generateEnvironment() {
+            const pmrem = new THREE.PMREMGenerator(renderer);
+            pmrem.compileEquirectangularShader();
             const envScene = new THREE.Scene();
-            envScene.background = new THREE.Color(0x888888);
-
-            // Añadir luces de colores a la escena de ambiente
-            const light1 = new THREE.DirectionalLight(0xffffff, 2);
-            light1.position.set(1, 1, 1);
-            envScene.add(light1);
-
-            const light2 = new THREE.DirectionalLight(0x8888ff, 1);
-            light2.position.set(-1, 0.5, -1);
-            envScene.add(light2);
-
-            const light3 = new THREE.DirectionalLight(0xffaa44, 0.5);
-            light3.position.set(0, -1, 0);
-            envScene.add(light3);
-
-            // Esfera envolvente blanca difusa
-            const envGeo = new THREE.SphereGeometry(50, 32, 32);
-            const envMat = new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.BackSide });
-            envScene.add(new THREE.Mesh(envGeo, envMat));
-
-            const envMap = pmremGenerator.fromScene(envScene, 0.04).texture;
-            scene.environment = envMap;
-
-            envGeo.dispose();
-            envMat.dispose();
-            pmremGenerator.dispose();
+            envScene.background = new THREE.Color(0x999999);
+            envScene.add(new THREE.DirectionalLight(0xffffff, 2).translateZ(1));
+            envScene.add(new THREE.DirectionalLight(0x8888ff, 1).translateX(-1));
+            envScene.add(new THREE.DirectionalLight(0xffaa44, 0.5).translateY(-1));
+            const sphere = new THREE.Mesh(
+                new THREE.SphereGeometry(50, 16, 16),
+                new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.BackSide })
+            );
+            envScene.add(sphere);
+            scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+            sphere.geometry.dispose();
+            sphere.material.dispose();
+            pmrem.dispose();
         }
 
+        // ===================================================================
+        // LOOP PRINCIPAL — ESCANEO CONTINUO, NUNCA SE DETIENE
+        // ===================================================================
         function tick() {
             if (!isARRunning) return;
             animationId = requestAnimationFrame(tick);
 
-            // Rotar modelo suavemente para confirmar que está ahí
-            if (currentModel && !isScanning) {
-                currentModel.rotation.y += modelRotationSpeed;
+            if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+
+            // --- Escanear SIEMPRE ---
+            const maxScan = 640;
+            const sc = Math.min(1, maxScan / video.videoWidth);
+            scanCanvas.width = Math.floor(video.videoWidth * sc);
+            scanCanvas.height = Math.floor(video.videoHeight * sc);
+            scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
+
+            const imgData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+            threshold(imgData);
+
+            const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" });
+            const marker = document.getElementById('marker-highlight');
+
+            if (code) {
+                // QR DETECTADO
+                qrLostFrames = 0;
+
+                const rawData = code.data.trim();
+                let modelId = rawData.startsWith('model=') ? rawData.split('=')[1] : rawData;
+                const modelEntry = modelsData.find(m => m.id === modelId);
+
+                if (modelEntry) {
+                    if (!activeModelId) {
+                        // Primera detección: cargar modelo
+                        activeModelId = modelId;
+                        isLoading = true;
+                        loadModel3D(modelEntry);
+                        showModelToast(modelEntry.name);
+                        document.getElementById('tracking-indicator').style.display = 'block';
+                    } else if (activeModelId !== modelId) {
+                        // QR diferente: cambiar modelo
+                        removeCurrentModel();
+                        activeModelId = modelId;
+                        isLoading = true;
+                        loadModel3D(modelEntry);
+                        showModelToast(modelEntry.name);
+                    }
+
+                    // ACTUALIZAR POSICIÓN DEL MODELO CADA FRAME
+                    if (currentModel && !isLoading) {
+                        updateModelTransform(code.location);
+                        marker.style.display = 'none';
+                        updateStatus("Modelo fijado al QR");
+                    } else if (isLoading) {
+                        // Mostrar marcador mientras carga
+                        drawMarker(code.location);
+                        updateStatus("Cargando modelo...");
+                    }
+                } else {
+                    drawMarker(code.location);
+                    updateStatus("QR no reconocido: " + modelId);
+                }
+            } else {
+                // QR NO DETECTADO
+                marker.style.display = 'none';
+                qrLostFrames++;
+
+                if (qrLostFrames > GRACE_FRAMES) {
+                    // Fuera de grace period
+                    if (currentModel) {
+                        currentModel.visible = false;
+                    }
+                    updateStatus("QR perdido. Buscando...");
+                    setTrackingDots(false, false, false);
+                } else {
+                    // Grace period: mantener última posición
+                    if (currentModel) currentModel.visible = true;
+                    updateStatus("QR perdido... " + (GRACE_FRAMES - qrLostFrames));
+                }
             }
 
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                if (isScanning) {
-                    // Escanear a resolución reducida para rendimiento
-                    const maxScan = 640;
-                    const scale = Math.min(1, maxScan / video.videoWidth);
-                    scanCanvas.width = Math.floor(video.videoWidth * scale);
-                    scanCanvas.height = Math.floor(video.videoHeight * scale);
-                    scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
+            renderer.render(scene, camera);
+        }
 
-                    let imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
-                    threshold(imageData);
-
-                    const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                        inversionAttempts: "dontInvert"
-                    });
-
-                    const marker = document.getElementById('marker-highlight');
-
-                    if (code) {
-                        updateStatus("QR detectado. Cargando...");
-                        drawMarker(code.location);
-
-                        const rawData = code.data.trim();
-                        let modelId = rawData.startsWith('model=') ? rawData.split('=')[1] : rawData;
-
-                        const modelEntry = modelsData.find(m => m.id === modelId);
-                        if (modelEntry) {
-                            loadAndFixModel(modelEntry, code.location);
-                            showModelToast(modelEntry.name);
-                            isScanning = false;
-                            marker.style.display = 'none';
-                        } else {
-                            updateStatus("QR desconocido: " + modelId);
-                        }
-                    } else {
-                        updateStatus("Buscando QR...");
-                        marker.style.display = 'none';
-                    }
-                }
-
-                renderer.render(scene, camera);
+        // ===================================================================
+        // MAPEO DE COORDENADAS (object-fit: cover)
+        // ===================================================================
+        function getCoverParams() {
+            const va = video.videoWidth / video.videoHeight;
+            const sa = window.innerWidth / window.innerHeight;
+            if (sa > va) {
+                const rH = window.innerWidth / va;
+                return { rW: window.innerWidth, rH, oX: 0, oY: (window.innerHeight - rH) / 2 };
+            } else {
+                const rW = window.innerHeight * va;
+                return { rW, rH: window.innerHeight, oX: (window.innerWidth - rW) / 2, oY: 0 };
             }
         }
 
+        function canvasToScreen(cx, cy) {
+            const p = getCoverParams();
+            return {
+                x: p.oX + (cx / scanCanvas.width) * p.rW,
+                y: p.oY + (cy / scanCanvas.height) * p.rH
+            };
+        }
+
+        function canvasSizeToScreen(canvasSize) {
+            const p = getCoverParams();
+            return (canvasSize / scanCanvas.width) * p.rW;
+        }
+
+        // ===================================================================
+        // TRANSFORM DEL MODELO — POSICIÓN + ESCALA + ROTACIÓN DESDE EL QR
+        // ===================================================================
+        function updateModelTransform(loc) {
+            if (!currentModel) return;
+
+            const DEPTH = 3; // Plano Z donde se sitúa el modelo
+            const frustumH = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * DEPTH;
+            const frustumW = frustumH * camera.aspect;
+
+            // --- POSICIÓN: centro del QR → 3D ---
+            const center = {
+                x: (loc.topLeftCorner.x + loc.topRightCorner.x + loc.bottomLeftCorner.x + loc.bottomRightCorner.x) / 4,
+                y: (loc.topLeftCorner.y + loc.topRightCorner.y + loc.bottomLeftCorner.y + loc.bottomRightCorner.y) / 4
+            };
+            const scr = canvasToScreen(center.x, center.y);
+            const ndcX = (scr.x / window.innerWidth) * 2 - 1;
+            const ndcY = -(scr.y / window.innerHeight) * 2 + 1;
+
+            // Offset: modelo ligeramente ENCIMA del centro del QR
+            const topWidth = Math.hypot(loc.topRightCorner.x - loc.topLeftCorner.x, loc.topRightCorner.y - loc.topLeftCorner.y);
+            const bottomWidth = Math.hypot(loc.bottomRightCorner.x - loc.bottomLeftCorner.x, loc.bottomRightCorner.y - loc.bottomLeftCorner.y);
+            const leftHeight = Math.hypot(loc.bottomLeftCorner.x - loc.topLeftCorner.x, loc.bottomLeftCorner.y - loc.topLeftCorner.y);
+            const rightHeight = Math.hypot(loc.bottomRightCorner.x - loc.topRightCorner.x, loc.bottomRightCorner.y - loc.topRightCorner.y);
+            const avgHeight = (leftHeight + rightHeight) / 2;
+            const qrScreenH = canvasSizeToScreen(avgHeight);
+            const yOffset = (qrScreenH / window.innerHeight) * frustumH * 0.55; // 55% arriba del centro
+
+            const targetX = ndcX * frustumW / 2;
+            const targetY = ndcY * frustumH / 2 + yOffset;
+            const targetZ = -DEPTH;
+
+            // --- ESCALA: tamaño aparente del QR en pantalla ---
+            const avgWidth = (topWidth + bottomWidth) / 2;
+            const qrScreenW = canvasSizeToScreen(avgWidth);
+            // Referencia: QR ocupa 25% del ancho de pantalla = escala base
+            const refW = window.innerWidth * 0.25;
+            const targetScale = Math.max(0.01, (qrScreenW / refW) * baseModelScale * 1.5);
+
+            // --- ROTACIÓN Z: ángulo del borde superior del QR ---
+            const angleZ = Math.atan2(
+                loc.topRightCorner.y - loc.topLeftCorner.y,
+                loc.topRightCorner.x - loc.topLeftCorner.x
+            );
+
+            // --- TILT X/Y: distorsión de perspectiva del QR ---
+            const widthRatio = topWidth / Math.max(bottomWidth, 0.001);
+            const heightRatio = leftHeight / Math.max(rightHeight, 0.001);
+            const tiltX = Math.max(-0.4, Math.min(0.4, (1 - widthRatio) * 0.6));
+            const tiltY = Math.max(-0.4, Math.min(0.4, (heightRatio - 1) * 0.6));
+
+            // --- SUAVIZADO (evita vibración) ---
+            const s = SMOOTH;
+            smoothPos.x += (targetX - smoothPos.x) * (1 - s);
+            smoothPos.y += (targetY - smoothPos.y) * (1 - s);
+            smoothPos.z += (targetZ - smoothPos.z) * (1 - s);
+            smoothScale += (targetScale - smoothScale) * (1 - s);
+            smoothRotZ += (-angleZ - smoothRotZ) * (1 - s);
+            smoothTiltX += (tiltX - smoothTiltX) * (1 - s);
+            smoothTiltY += (tiltY - smoothTiltY) * (1 - s);
+
+            // Aplicar
+            currentModel.position.set(smoothPos.x, smoothPos.y, smoothPos.z);
+            currentModel.scale.setScalar(smoothScale);
+            currentModel.rotation.set(smoothTiltX, smoothTiltY, smoothRotZ);
+            currentModel.visible = true;
+
+            // Indicadores de tracking
+            setTrackingDots(true, true, true);
+        }
+
+        function setTrackingDots(pos, scl, rot) {
+            document.getElementById('dot-pos').className = 'track-dot ' + (pos ? 'on' : 'off');
+            document.getElementById('dot-scl').className = 'track-dot ' + (scl ? 'on' : 'off');
+            document.getElementById('dot-rot').className = 'track-dot ' + (rot ? 'on' : 'off');
+        }
+
+        // ===================================================================
+        // CARGA DEL MODELO 3D (solo carga, sin posicionar)
+        // ===================================================================
+        function loadModel3D(modelData) {
+            updateStatus("Descargando " + modelData.name + "...");
+
+            const loader = new THREE.GLTFLoader();
+            loader.load(modelData.url, (gltf) => {
+                // Si ya hay un modelo (cambio de QR), limpiarlo
+                removeCurrentModel();
+
+                currentModel = gltf.scene;
+
+                // Calcular escala base para normalizar a ~1 unidad
+                const box = new THREE.Box3().setFromObject(currentModel);
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+                baseModelScale = 1.2 / maxDim;
+
+                // Centrar el modelo en su propio origen
+                const center3D = box.getCenter(new THREE.Vector3());
+                currentModel.position.sub(center3D);
+
+                // Forzar visibilidad de materiales
+                currentModel.traverse((node) => {
+                    if (node.isMesh) {
+                        if (!node.material) {
+                            node.material = new THREE.MeshStandardMaterial({ color: 0x00ff88, roughness: 0.4, metalness: 0.1 });
+                        }
+                        if (node.material.color) {
+                            const c = node.material.color;
+                            if (c.r < 0.05 && c.g < 0.05 && c.b < 0.05) c.setHex(0x00ff88);
+                        }
+                        if (node.material.roughness !== undefined) {
+                            node.material.roughness = Math.min(node.material.roughness, 0.65);
+                        }
+                    }
+                });
+
+                scene.add(currentModel);
+                isLoading = false;
+                updateStatus("Modelo listo. Fijando al QR...");
+
+            }, (progress) => {
+                if (progress.total > 0) {
+                    updateStatus("Descargando... " + Math.round(progress.loaded / progress.total * 100) + "%");
+                }
+            }, (error) => {
+                console.error("Error GLB:", error);
+                removeCurrentModel();
+                createFallbackCube();
+                isLoading = false;
+            });
+        }
+
+        function removeCurrentModel() {
+            if (!currentModel) return;
+            scene.remove(currentModel);
+            currentModel.traverse((child) => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                    else child.material.dispose();
+                }
+            });
+            currentModel = null;
+        }
+
+        function createFallbackCube() {
+            const group = new THREE.Group();
+
+            const solidMat = new THREE.MeshStandardMaterial({
+                color: 0x00ff44, roughness: 0.3, metalness: 0.1,
+                transparent: true, opacity: 0.75
+            });
+            group.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), solidMat));
+
+            const wireMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+            group.add(new THREE.Mesh(new THREE.BoxGeometry(1.06, 1.06, 1.06), wireMat));
+
+            // Ejes de referencia
+            const axLen = 0.8;
+            [
+                [new THREE.Vector3(0,0,0), new THREE.Vector3(axLen,0,0), 0xff0000],
+                [new THREE.Vector3(0,0,0), new THREE.Vector3(0,axLen,0), 0x00ff00],
+                [new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,axLen), 0x0088ff]
+            ].forEach(([a, b, c]) => {
+                const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+                group.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: c })));
+            });
+
+            baseModelScale = 1.0;
+            currentModel = group;
+            scene.add(currentModel);
+            updateStatus("Cubo verde (fallback) listo");
+        }
+
+        // ===================================================================
+        // UTILIDADES
+        // ===================================================================
         function threshold(imageData) {
             const d = imageData.data;
             for (let i = 0; i < d.length; i += 4) {
                 const v = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
-                const bin = v >= 100 ? 255 : 0;
+                const bin = v >= 90 ? 255 : 0;
                 d[i] = d[i + 1] = d[i + 2] = bin;
             }
-        }
-
-        function getQRCenter(loc) {
-            return {
-                x: (loc.topLeftCorner.x + loc.topRightCorner.x + loc.bottomLeftCorner.x + loc.bottomRightCorner.x) / 4,
-                y: (loc.topLeftCorner.y + loc.topRightCorner.y + loc.bottomLeftCorner.y + loc.bottomRightCorner.y) / 4
-            };
         }
 
         function drawMarker(loc) {
             const marker = document.getElementById('marker-highlight');
             marker.style.display = 'block';
+            const center = {
+                x: (loc.topLeftCorner.x + loc.topRightCorner.x + loc.bottomLeftCorner.x + loc.bottomRightCorner.x) / 4,
+                y: (loc.topLeftCorner.y + loc.topRightCorner.y + loc.bottomLeftCorner.y + loc.bottomRightCorner.y) / 4
+            };
+            const topW = Math.hypot(loc.topRightCorner.x - loc.topLeftCorner.x, loc.topRightCorner.y - loc.topLeftCorner.y);
+            const botW = Math.hypot(loc.bottomRightCorner.x - loc.bottomLeftCorner.x, loc.bottomRightCorner.y - loc.bottomLeftCorner.y);
+            const avgW = (topW + botW) / 2;
 
-            // Calcular dimensiones del QR en pixels del canvas de escaneo
-            const topWidth = Math.hypot(
-                loc.topRightCorner.x - loc.topLeftCorner.x,
-                loc.topRightCorner.y - loc.topLeftCorner.y
-            );
-            const bottomWidth = Math.hypot(
-                loc.bottomRightCorner.x - loc.bottomLeftCorner.x,
-                loc.bottomRightCorner.y - loc.bottomLeftCorner.y
-            );
-            const qrWidthPx = (topWidth + bottomWidth) / 2;
+            const scr = canvasToScreen(center.x, center.y);
+            const scrW = canvasSizeToScreen(avgW);
 
-            const center = getQRCenter(loc);
-
-            // Mapear del canvas de escaneo a la pantalla
-            // El video usa object-fit: cover, necesitamos mapear correctamente
-            const videoAspect = video.videoWidth / video.videoHeight;
-            const screenAspect = window.innerWidth / window.innerHeight;
-
-            let renderW, renderH, offsetX, offsetY;
-            if (screenAspect > videoAspect) {
-                // Pillarboxes a los lados
-                renderW = window.innerWidth;
-                renderH = window.innerWidth / videoAspect;
-                offsetX = 0;
-                offsetY = (window.innerHeight - renderH) / 2;
-            } else {
-                // Letterboxes arriba/abajo
-                renderH = window.innerHeight;
-                renderW = window.innerHeight * videoAspect;
-                offsetX = (window.innerWidth - renderW) / 2;
-                offsetY = 0;
-            }
-
-            const screenX = offsetX + (center.x / scanCanvas.width) * renderW;
-            const screenY = offsetY + (center.y / scanCanvas.height) * renderH;
-            const screenSize = (qrWidthPx / scanCanvas.width) * renderW;
-
-            marker.style.left = screenX + 'px';
-            marker.style.top = screenY + 'px';
-            marker.style.width = screenSize + 'px';
-            marker.style.height = screenSize + 'px';
-        }
-
-        // --- 6. CARGA DE MODELO ---
-        function loadAndFixModel(modelData, location) {
-            const center = getQRCenter(location);
-
-            // Mapear centro del QR a coordenadas normalizadas (-1 a 1)
-            // Considerando object-fit: cover igual que en drawMarker
-            const videoAspect = video.videoWidth / video.videoHeight;
-            const screenAspect = window.innerWidth / window.innerHeight;
-
-            let normX, normY;
-            if (screenAspect > videoAspect) {
-                normX = (center.x / scanCanvas.width) * 2 - 1;
-                const renderH = window.innerWidth / videoAspect;
-                const offsetY = (window.innerHeight - renderH) / 2;
-                const screenY = offsetY + (center.y / scanCanvas.height) * renderH;
-                normY = -(screenY / window.innerHeight) * 2 + 1;
-            } else {
-                const renderW = window.innerHeight * videoAspect;
-                const offsetX = (window.innerWidth - renderW) / 2;
-                const screenX = offsetX + (center.x / scanCanvas.width) * renderW;
-                normX = (screenX / window.innerWidth) * 2 - 1;
-                normY = -(center.y / scanCanvas.height) * 2 + 1;
-            }
-
-            // FIX #2: Posicionar en espacio 3D correctamente
-            // La cámara está en z=0 mirando hacia -z
-            // Colocamos el modelo a z = -3 (delante de la cámara)
-            const frustumHeight = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * 3;
-            const frustumWidth = frustumHeight * camera.aspect;
-
-            const posX = normX * frustumWidth / 2;
-            const posY = normY * frustumHeight / 2;
-            const posZ = -3;
-
-            // Si ya hay un modelo, reposicionarlo
-            if (currentModel) {
-                currentModel.position.set(posX, posY, posZ);
-                currentModel.visible = true;
-                updateStatus("Modelo reposicionado.");
-                return;
-            }
-
-            updateStatus("Descargando " + modelData.name + "...");
-
-            const loader = new THREE.GLTFLoader();
-
-            loader.load(modelData.url, (gltf) => {
-                currentModel = gltf.scene;
-
-                // Calcular bounding box para escalar proporcionalmente
-                const box = new THREE.Box3().setFromObject(currentModel);
-                const size = box.getSize(new THREE.Vector3());
-                const maxDim = Math.max(size.x, size.y, size.z);
-                // Escalar para que el modelo mida ~1 unidad en su dimensión más grande
-                const targetSize = 1.2;
-                const scale = targetSize / Math.max(maxDim, 0.001);
-                currentModel.scale.setScalar(scale);
-
-                // Centrar el modelo en su origen
-                const center3D = box.getCenter(new THREE.Vector3());
-                currentModel.position.sub(center3D.multiplyScalar(scale));
-
-                // FIX #3: Forzar materiales visibles en cada mesh
-                currentModel.traverse((node) => {
-                    if (node.isMesh) {
-                        // Asegurar que tenga material
-                        if (!node.material) {
-                            node.material = new THREE.MeshStandardMaterial({
-                                color: 0x00ff88,
-                                roughness: 0.5,
-                                metalness: 0.2
-                            });
-                        }
-
-                        // Si el material es completamente oscuro, darle color visible
-                        if (node.material.color) {
-                            const c = node.material.color;
-                            if (c.r < 0.05 && c.g < 0.05 && c.b < 0.05) {
-                                c.setHex(0x00ff88);
-                            }
-                        }
-
-                        // Asegurar que roughness no sea 1.0 puro (se vería opaco sin reflejos)
-                        if (node.material.roughness !== undefined) {
-                            node.material.roughness = Math.min(node.material.roughness, 0.7);
-                        }
-
-                        // Forzar que reciba y proyecte sombras
-                        node.castShadow = true;
-                        node.receiveShadow = true;
-                    }
-                });
-
-                // Posicionar sobre el QR
-                currentModel.position.set(posX, posY, posZ);
-
-                scene.add(currentModel);
-                updateStatus("Modelo visible: " + modelData.name);
-                console.log("Modelo cargado OK:", modelData.name, "en", posX.toFixed(2), posY.toFixed(2), posZ);
-
-            }, (progress) => {
-                // Progreso de descarga
-                if (progress.total > 0) {
-                    const pct = Math.round((progress.loaded / progress.total) * 100);
-                    updateStatus("Descargando... " + pct + "%");
-                }
-            }, (error) => {
-                console.error("Error cargando GLB:", error);
-                // FALLBACK: Cubo verde visible
-                createFallbackCube(posX, posY, posZ);
-            });
-        }
-
-        function createFallbackCube(x, y, z) {
-            console.log("Creando cubo de respaldo en", x, y, z);
-
-            // Grupo con cubo sólido + wireframe para máxima visibilidad
-            const group = new THREE.Group();
-
-            // Cubo sólido semi-transparente
-            const solidGeo = new THREE.BoxGeometry(1, 1, 1);
-            const solidMat = new THREE.MeshStandardMaterial({
-                color: 0x00ff44,
-                roughness: 0.3,
-                metalness: 0.1,
-                transparent: true,
-                opacity: 0.7
-            });
-            group.add(new THREE.Mesh(solidGeo, solidMat));
-
-            // Wireframe encima
-            const wireGeo = new THREE.BoxGeometry(1.05, 1.05, 1.05);
-            const wireMat = new THREE.MeshBasicMaterial({
-                color: 0x00ff00,
-                wireframe: true
-            });
-            group.add(new THREE.Mesh(wireGeo, wireMat));
-
-            // Ejes para referencia
-            const axisLen = 0.8;
-            const axisX = new THREE.Line(
-                new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(axisLen, 0, 0)]),
-                new THREE.LineBasicMaterial({ color: 0xff0000 })
-            );
-            const axisY = new THREE.Line(
-                new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, axisLen, 0)]),
-                new THREE.LineBasicMaterial({ color: 0x00ff00 })
-            );
-            const axisZ = new THREE.Line(
-                new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, axisLen)]),
-                new THREE.LineBasicMaterial({ color: 0x0000ff })
-            );
-            group.add(axisX, axisY, axisZ);
-
-            group.position.set(x, y, z);
-            scene.add(group);
-            currentModel = group;
-
-            updateStatus("Cubo verde (fallback) visible");
+            marker.style.left = scr.x + 'px';
+            marker.style.top = scr.y + 'px';
+            marker.style.width = scrW + 'px';
+            marker.style.height = scrW + 'px';
         }
 
         function updateStatus(msg) {
@@ -603,11 +640,9 @@
 
         window.addEventListener('resize', () => {
             if (camera && renderer && isARRunning) {
-                const w = window.innerWidth;
-                const h = window.innerHeight;
-                camera.aspect = w / h;
+                camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
-                renderer.setSize(w, h);
+                renderer.setSize(window.innerWidth, window.innerHeight);
             }
         });
     </script>
